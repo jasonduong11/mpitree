@@ -33,13 +33,6 @@ class DecisionTreeEstimator:
         Contains pre-pruning hyperparameters of a decision tree (the
         default is None and will be assigned as an empty dictionary).
 
-    See Also
-    --------
-    decision_tree.DecisionTreeClassifier :
-        A decision tree classifier.
-    decision_tree.DecisionTreeRegresor :
-        A decision tree regressor.
-
     References
     ----------
     .. [1] J. D. Kelleher, M. B. Namee, and A. D'Arcy, Fundamentals
@@ -53,7 +46,7 @@ class DecisionTreeEstimator:
     _n_levels = None
     _n_thresholds = {}
 
-    def __init__(self, *, root=None, metric=None, criterion=None, purity=None):
+    def __init__(self, *, root=None, metric=None, criterion=None, purity="entropy"):
         self.root = root
         self.metric = metric
         self.criterion = criterion
@@ -214,7 +207,7 @@ class DecisionTreeEstimator:
 
         return tree
 
-    def _check_valid_params(self, X, y):
+    def _check_valid_params(self, X, y, /):
         """Check parameters have valid values.
 
         The input data must not be empty. Both thresholds, and criterion
@@ -281,6 +274,13 @@ class DecisionTreeEstimator:
             d: ((lt, ge) if is_numeric_dtype(X[d]) else np.unique(X[d]))
             for d in X.columns
         }
+
+    def to_pandas(self, X, y, /):
+        if isinstance(X, np.ndarray):
+            X = pd.DataFrame(X, columns=[f"x_{i+1}" for i in range(X.ndim)])
+        if isinstance(y, np.ndarray):
+            y = pd.Series(y)
+        return X, y
 
     def find_optimal_threshold(self, X, y, d):
         """Compute the optimal threshold between different target levels.

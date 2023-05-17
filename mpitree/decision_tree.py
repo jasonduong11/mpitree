@@ -214,14 +214,17 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
 
         Parameters
         ----------
-        X, y : pd.DataFrame.dtypes
-            The feature matrix and target vector of the dataset.
+        X : pd.DataFrame.dtypes
+            The feature matrix of the dataset.
+        y : pd.Series.dtypes
+            The target vector of the dataset.
 
         Returns
         -------
         self
             The current instance of the `DecisionTreeClassifier`.
         """
+        X, y = self.to_pandas(X, y)
         self._check_valid_params(X, y)
         self.root = self.make_tree(X, y)
         return self
@@ -327,6 +330,7 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
         -------
         float
         """
+        X, y = self.to_pandas(X, y)
         y_hat = [self.predict(X.iloc[i]) for i in range(len(X))]
         return accuracy_score(y, y_hat)
 
