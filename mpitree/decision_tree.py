@@ -24,8 +24,8 @@ WORLD_SIZE = WORLD_COMM.Get_size()
 
 def Get_cyclic_dist(comm, p):
     """ """
-    m = comm.Get_rank()
-    color, key = m % p, m // p
+    n = comm.Get_rank()
+    color, key = n % p, n // p
     return comm.Split(color, key), color
 
 

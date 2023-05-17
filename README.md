@@ -9,15 +9,35 @@ A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 
 ## Overview
 
-![psplit](https://raw.githubusercontent.com/ben-my-to/mpitree/main/images/<REPLACE_WITH_IMAGE_NAME>.png)
+<table>
+<tr>
+    <td colspan="4" style=text-align:center;><b>Cyclic Distribution</b></td>
+</tr>
+<tr>
+    <th style=background-color:#eee;><i>m</t></th>
+    <td style='font-family:monospace;'>0 1 2</td>
+    <td style='font-family:monospace;'>3 4 5</td>
+    <td style='font-family:monospace;'>6 7</td>
+</tr>
+<tr>
+    <th style=background-color:#eee;><i>b</i></th>
+    <td style='font-family:monospace;'>0 1 2</td>
+    <td style='font-family:monospace;'>0 1 2</td>
+    <td style='font-family:monospace;'>0 1</td>
+</tr>
+<tr>
+    <th style=background-color:#eee;><i>r<sub>b</sub></i></th>
+    <td style='font-family:monospace;'>0 0 0</td>
+    <td style='font-family:monospace;'>1 1 1</td>
+    <td style='font-family:monospace;'>2 2</td>
+</tr>
+</table>
 
-For every interior decision tree node created, a variable number of processes collectively calculate the best feature to split *(i.e., the feature that maximizes the information gain)* Processes in a *communicator* are split approximately evenly across all levels of a split feature. Let $n$ be the total number of processes and $p$ be the number of levels, then each distribution, $m$ at some level $p$, contains at most $\lceil n/p \rceil$ processes and only one distribution contains $\lfloor n/p \rfloor$ processes where $n \nmid p$. Processes in a distribution independently participate among themselves at their respective levels. In summary, each process, $r$, is distributed in the cyclic distribution or round-robin fashion such that their $comm = r \mod p$ and $r' = \lfloor r/p \rfloor$.
+For every interior decision tree node created, a variable number of processes collectively calculate the best feature to split *(i.e., the feature that maximizes the information gain)*. Processes in a *communicator* are split approximately evenly across all levels of a split feature. Let $n$ be the total number of processes and $p$ be the number of levels, then each distribution $m$ at some level $p$, contains at most $\lceil n/p \rceil$ processes and only one distribution contains $\lfloor n/p \rfloor$ processes where $n \nmid p$. Thus, each process *(rank)*, $r$, is scheduled in the cyclic/round-robin fashion in some sub-communicator $b$ such that their $b = r \mod p$ and $r_b = \lfloor r/p \rfloor$.
 
-Each routine waits for their respective processes from their original *communicator* to finish executing. The completion of a routine results in a sub-tree on a particular path from the root, and the local communicator is de-allocated. The algorithm terminates when all sub-trees are recursively gathered to the root process.
+Processes in each distribution independently participate among themselves at their respective levels. Each routine waits for their respective processes from their *original* communicator to finish executing. The completion of a routine results in a sub-tree on a particular path from the root, and the *local* communicator is de-allocated. The algorithm terminates when all sub-trees are recursively gathered to the root process.
 
-Note that all processes only perform a split during the *divide* phase in a given communicator at an interior node. Therefore, a leaf node may consist of more than one process, because the purity measurement at a node is independent of the number of processes.
-
-In the above diagram, the root node consists of eight total processes, $p_0, p_1, ..., p_7$, with three distinct feature levels, $l_0, l_1, l_2$. Group 1 consists of processes and ranks, $(0,0), (1,1), (6,2), (7,3)$ respectively, Group 2 consists of processes and ranks, $(2,0), (3,1)$ respectively and Group 3 consists of processes and ranks, $(4,0), (5,1)$ respectively.
+In the above table, eight total processes ranked, $(0, 1, ..., 7)$, are distributed across three feature levels. Group $0$ consists of processes and ranks, $\{(0,0),(3,1),(6,2)\}$ respectively, Group $1$ consists of processes and ranks, $\{(1,0),(4,1),(7,2)\}$ respectively and Group $2$ consists of processes and ranks, $\{(2,0), (5,1)\}$ respectively.
 
 ## Requirements
 
