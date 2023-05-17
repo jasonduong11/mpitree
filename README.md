@@ -9,9 +9,9 @@ A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 
 ## Overview
 
-![psplit](https://raw.githubusercontent.com/ben-my-to/mpitree/main/images/process_split.png)
+![psplit](https://raw.githubusercontent.com/ben-my-to/mpitree/main/images/<REPLACE_WITH_IMAGE_NAME>.png)
 
-For every interior decision tree node created, a variable number of processes collectively calculate the best feature to split *(i.e., the feature that maximizes the information gain)* Processes in a *communicator* are split approximately evenly across all levels of a split feature. Let $n$ be the number of processes and $p$ be the number of levels, then each distribution, $m$, contains at least $\lfloor n/p \rfloor$ processes and at most one distribution has at most $\lceil n/p \rceil$ processes where $n\nmid p$. Processes in a distribution independently participate among themselves at their respective levels. In summary, processes are assigned in the cyclic distribution or round-robin fashion such that their $comm = (\lfloor ranks/m\rfloor)\mod p$ and $rank = comm_{size}/rank$.
+For every interior decision tree node created, a variable number of processes collectively calculate the best feature to split *(i.e., the feature that maximizes the information gain)* Processes in a *communicator* are split approximately evenly across all levels of a split feature. Let $n$ be the total number of processes and $p$ be the number of levels, then each distribution, $m$ at some level $p$, contains at most $\lceil n/p \rceil$ processes and only one distribution contains $\lfloor n/p \rfloor$ processes where $n \nmid p$. Processes in a distribution independently participate among themselves at their respective levels. In summary, each process, $r$, is distributed in the cyclic distribution or round-robin fashion such that their $comm = r \mod p$ and $r' = \lfloor r/p \rfloor$.
 
 Each routine waits for their respective processes from their original *communicator* to finish executing. The completion of a routine results in a sub-tree on a particular path from the root, and the local communicator is de-allocated. The algorithm terminates when all sub-trees are recursively gathered to the root process.
 
@@ -50,14 +50,14 @@ if __name__ == "__main__":
     )
 
     # Concurrently train a decision tree classifier of `max_depth` 2 among all processes
-    tree = ParallelDecisionTreeClassifier(criterion={"max_depth": 2})
-    tree.fit(X_train, y_train)
+    clf = ParallelDecisionTreeClassifier(criterion={"max_depth": 2})
+    clf.fit(X_train, y_train)
 
     # Evaluate the performance (e.g., accuracy) of the decision tree classifier
-    train_score, test_score = tree.score(X_train, y_train), tree.score(X_test, y_test)
+    train_score, test_score = clf.score(X_train, y_train), clf.score(X_test, y_test)
 
     if not WORLD_RANK:
-        print(tree)
+        print(clf)
         print(f"Train/Test Accuracy: ({train_score:.2%}, {test_score:.2%})")
 ```
 
