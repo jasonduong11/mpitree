@@ -1,7 +1,7 @@
 # mpitree
 
-![Build Status](https://github.com/duong-jason/mpitree/workflows/Unit%20Tests/badge.svg)
-![Build Status](https://github.com/duong-jason/mpitree/workflows/Lint/badge.svg)
+![Build Status](https://github.com/ben-my-to/mpitree/workflows/Unit%20Tests/badge.svg)
+![Build Status](https://github.com/ben-my-to/mpitree/workflows/Lint/badge.svg)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/PyCQA/pylint)
 
@@ -9,7 +9,7 @@ A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 
 ## Overview
 
-![psplit](https://raw.githubusercontent.com/duong-jason/mpitree/main/images/process_split.png)
+![psplit](https://raw.githubusercontent.com/ben-my-to/mpitree/main/images/process_split.png)
 
 For every interior decision tree node created, a variable number of processes collectively calculate the best feature to split *(i.e., the feature that maximizes the information gain)* Processes in a *communicator* are split approximately evenly across all levels of a split feature. Let $n$ be the number of processes and $p$ be the number of levels, then each distribution, $m$, contains at least $\lfloor n/p \rfloor$ processes and at most one distribution has at most $\lceil n/p \rceil$ processes where $n\nmid p$. Processes in a distribution independently participate among themselves at their respective levels. In summary, processes are assigned in the cyclic distribution or round-robin fashion such that their $comm = (\lfloor ranks/m\rfloor)\mod p$ and $rank = comm_{size}/rank$.
 
@@ -30,9 +30,8 @@ In the above diagram, the root node consists of eight total processes, $p_0, p_1
 ## Installation
 
 ```bash
-git clone https://github.com/duong-jason/mpitree.git
-cd mpitree
-make install
+git clone https://github.com/ben-my-to/mpitree.git
+cd mpitree && make install
 ```
 
 ## Example using the *iris* dataset
@@ -41,7 +40,7 @@ make install
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 
-from mpitree.decision_tree import ParallelDecisionTreeClassifier, world_rank
+from mpitree.decision_tree import ParallelDecisionTreeClassifier, WORLD_RANK
 
 if __name__ == "__main__":
     iris = load_iris(as_frame=True)
@@ -57,7 +56,7 @@ if __name__ == "__main__":
     # Evaluate the performance (e.g., accuracy) of the decision tree classifier
     train_score, test_score = tree.score(X_train, y_train), tree.score(X_test, y_test)
 
-    if not world_rank:
+    if not WORLD_RANK:
         print(tree)
         print(f"Train/Test Accuracy: ({train_score:.2%}, {test_score:.2%})")
 ```
@@ -81,7 +80,7 @@ Pre-and-post-pruning techniques are some solutions to reduce the likelihood of a
 
 The figure below depict various decision boundaries for different values of the `max_depth` hyperparameter. We used the *iris* dataset provided by *scikit-learn* as it provides a base analysis for our (parallel) decision tree implementation. The figure demonstrates how noisy instances may negatively impact the performance of the decision tree model.
 
-![dt_noise](https://raw.githubusercontent.com/duong-jason/mpitree/main/images/dt_noise.png)
+![dt_noise](https://raw.githubusercontent.com/ben-my-to/mpitree/main/images/dt_noise.png)
 
 ## Unit Tests
 
@@ -97,4 +96,4 @@ Please make sure to update tests as appropriate.
 
 ## Licence
 
-[MIT](https://github.com/duong-jason/mpitree/blob/main/LICENSE)
+[MIT](https://github.com/ben-my-to/mpitree/blob/main/LICENSE)

@@ -474,16 +474,16 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
             gain, optimal_threshold, _ = super().find_optimal_threshold(X, y, d)
             self.n_thresholds[d] = optimal_threshold
 
-            # TODO: Could cause future bugs
-            # larger reduction in variance should count more
-            # small offset added with variance reduction is zero
-            # (aka, worst splitting)
-            gain = np.reciprocal(gain + 1e-4)
+            # # TODO: Could cause future bugs
+            # # larger reduction in variance should count more
+            # # small offset added with variance reduction is zero
+            # # (aka, worst splitting)
+            # gain = np.reciprocal(gain + 1e-4)
             logger.info(gain)
         else:
             weight = np.unique(X[d], return_counts=True)[1] / len(X)
             metric = [self.metric(X[X[d] == t], y[X[d] == t]) for t in np.unique(X[d])]
-            gain = np.sum(weight * metric)
+            gain = np.dot(weight, metric)
         return gain
 
     def fit(self, X, y, /):
@@ -541,23 +541,24 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
 
         if len(np.unique(y)) == 1:
             logger.info("All instances have the same labels (%s)", str(y.mean()))
-            return make_node(mean(y))
-            # return make_node(y.mean())
+            # return make_node(mean(y))
+            return make_node(y.mean())
         if X.empty:
             logger.info("Dataset is empty")
-            return make_node(mean(y))
-            # return make_node(y.mean())
+            # return make_node(mean(y))
+            return make_node(y.mean())
         if all((X[d] == X[d].iloc[0]).all() for d in X.columns):
             logger.info("All instances have the same descriptive features")
-            return make_node(mode(y))
+            # return make_node(mean(y))
+            return make_node(y.mean())
         if self.criterion.get("max_depth", np.inf) <= depth:
             logger.info("Stopping at Max Depth: %d", depth)
-            return make_node(mean(y))
-            # return make_node(y.mean())
+            # return make_node(mean(y))
+            return make_node(y.mean())
         if self.criterion.get("min_samples_split", -np.inf) >= len(X):
             logger.info("Stopping at %d instances", len(X))
-            return make_node(mean(y))
-            # return make_node(y.mean())
+            # return make_node(mean(y))
+            return make_node(y.mean())
 
         logger.info("\n===Information Gain===\n")
 
@@ -591,8 +592,10 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
 
         Parameters
         ----------
-        X, y : pd.DataFrame.dtypes
-            The feature matrix and target vector of the dataset.
+        X : pd.DataFrame.dtypes
+            The feature matrix of the dataset.
+        y : pd.Series.dtypes
+            The target vector of the dataset.
 
         Returns
         -------
