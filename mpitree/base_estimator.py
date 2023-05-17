@@ -275,13 +275,6 @@ class DecisionTreeEstimator:
             for d in X.columns
         }
 
-    def to_pandas(self, X, y, /):
-        if isinstance(X, np.ndarray):
-            X = pd.DataFrame(X, columns=[f"x_{i+1}" for i in range(X.ndim)])
-        if isinstance(y, np.ndarray):
-            y = pd.Series(y)
-        return X, y
-
     def find_optimal_threshold(self, X, y, d):
         """Compute the optimal threshold between different target levels.
 

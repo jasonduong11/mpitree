@@ -15,6 +15,7 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 
 from .base_estimator import DecisionTreeEstimator
 from .node import Node, logger
+from .utils.conversion import _to_pandas_dataframe
 
 WORLD_COMM = MPI.COMM_WORLD
 WORLD_RANK = WORLD_COMM.Get_rank()
@@ -224,7 +225,7 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
         self
             The current instance of the `DecisionTreeClassifier`.
         """
-        X, y = self.to_pandas(X, y)
+        X, y = _to_pandas_dataframe(X, y)
         self._check_valid_params(X, y)
         self.root = self.make_tree(X, y)
         return self
@@ -330,7 +331,7 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
         -------
         float
         """
-        X, y = self.to_pandas(X, y)
+        X, y = _to_pandas_dataframe(X, y)
         y_hat = [self.predict(X.iloc[i]) for i in range(len(X))]
         return accuracy_score(y, y_hat)
 
@@ -462,17 +463,6 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
         Returns
         -------
         float
-
-        Notes
-        -----
-        The formula for calculating the weighted variance :func:`wvar` is
-        shown below [1]_.
-
-        .. math::
-
-            wvar(t,\\mathcal{D})=\\sum_{l\\in levels(d)}\\frac{|
-            \\mathcal{D}_{d=l}|}{|\\mathcal{D}|}\\cdot
-            \\mathcal{var}(t,\\mathcal{D}_{d=l})
         """
         if is_numeric_dtype(X[d]):
             gain, optimal_threshold, _ = super().find_optimal_threshold(X, y, d)
@@ -498,8 +488,10 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
 
         Parameters
         ----------
-        X, y : pd.DataFrame.dtypes
-            The feature matrix and target vector of the dataset.
+        X : pd.DataFrame.dtypes
+            The feature matrix of the dataset.
+        y : pd.Series.dtypes
+            The target vector of the dataset.
         d : str
             The feature specified in `X`.
 
@@ -508,6 +500,7 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
         self
             The current instance of the `DecisionTreeRegressor`.
         """
+        X, y = _to_pandas_dataframe(X, y)
         self._check_valid_params(X, y)
         self.root = self.make_tree(X, y)
         return self
@@ -605,6 +598,7 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
         -------
         float
         """
+        X, y = _to_pandas_dataframe(X, y)
         y_hat = [self.predict(X.iloc[i]) for i in range(len(X))]
         return mean_squared_error(y, y_hat, squared=False)
 
