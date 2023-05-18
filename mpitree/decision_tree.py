@@ -6,6 +6,7 @@ regression and a parallel version for classification.
 """
 
 from copy import deepcopy
+from multiprocessing.pool import ThreadPool
 from statistics import mean, mode
 
 import numpy as np
@@ -719,7 +720,10 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         if self.criterion.get("min_samples_split", -np.inf) >= len(X):
             return make_node(mode(y))
 
-        max_gain = np.argmax([self.find_information_gain(X, y, d) for d in X.columns])
+        with ThreadPool() as pool:
+            max_gain = np.argmax(
+                pool.map(lambda d: self.find_information_gain(X, y, d), X.columns)
+            )
 
         if self.criterion.get("min_gain", -np.inf) >= max_gain:
             return make_node(mode(y))
