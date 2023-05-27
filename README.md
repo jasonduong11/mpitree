@@ -14,28 +14,28 @@ A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
     <td colspan="4" style=text-align:center;><b>Cyclic Distribution</b></td>
 </tr>
 <tr>
-    <th style=background-color:#eee;><i>m</t></th>
+    <th style=background-color:#eee;><i>r</t></th>
     <td>0 1 2</td>
     <td>3 4 5</td>
     <td>6 7</td>
 </tr>
 <tr>
-    <th style=background-color:#eee;><i>b</i></th>
+    <th style=background-color:#eee;><i>m</i></th>
     <td>0 1 2</td>
     <td>0 1 2</td>
     <td>0 1</td>
 </tr>
 <tr>
-    <th style=background-color:#eee;><i>r<sub>b</sub></i></th>
+    <th style=background-color:#eee;><i>r<sub>m</sub></i></th>
     <td>0 0 0</td>
     <td>1 1 1</td>
     <td>2 2</td>
 </tr>
 </table>
 
-The Parallel Decision Tree algorithm schedules processes in a cyclic distribution approximately evenly across levels of a split feature. Processes in each distribution independently participate among themselves at their respective levels. For every interior decision tree node created, a sub-communicator, $b$, is constructed, and each thread per process, using the `ThreadPool` construct, concurrently calculates the best feature to split *(i.e., the feature that maximizes the information gain)*. Let $n$ be the total number of processes and $p$ be the number of levels. Then, each distribution $m$ at some level $p$ contains at most $\lceil n/p \rceil$ processes, and only one distribution has $\lfloor n/p \rfloor$ processes where $n \nmid p$. Therefore, each process's rank $r$ is assigned to the sub-communicator $b = r \mod p$ and is assigned a unique rank in that group $r_b = \lfloor r/p \rfloor$.
+The Parallel Decision Tree algorithm schedules processes in a cyclic distribution approximately evenly across levels of a split feature. Processes in each distribution independently participate among themselves at their respective levels and waits at their original *(parent)* communicator all other processes in that communicator. For every interior decision tree node created, a sub-communicator, $m$, is constructed, and each thread per process, using the `ThreadPool` construct, concurrently calculates the best feature to split *(i.e., the feature that maximizes the information gain)*. Let $n$ be the total number of processes and $p$ be the number of levels. Then, each distribution $m$ at some level $p$ contains at most $\lceil n/p \rceil$ processes, and only one distribution has $\lfloor n/p \rfloor$ processes where $n \nmid p$. Therefore, each process's rank $r$ is assigned to the sub-communicator $m = r \mod p$ and is assigned a unique rank in that group $r_m = \lfloor r/p \rfloor$.
 
- Each routine waits for their respective processes from their *original* communicator to finish executing. A terminated routine call results in a sub-tree on a particular path from the root, and the *local* communicator is de-allocated. The algorithm terminates when all sub-trees are recursively gathered to the root process.
+A terminated routine call results in a sub-tree on a particular path from the root, and the *local* communicator is de-allocated. The algorithm terminates when all sub-trees are recursively gathered to the root process.
 
 The table above shows eight total processes ranked $(0, 1, ..., 7)$, distributed across three feature levels. Group $0$ consists of processes and ranks, $(0,0),(3,1),(6,2)$ respectively, Group $1$ consists of processes and ranks, $(1,0),(4,1),(7,2)$ respectively and Group $2$ consists of processes and ranks, $(2,0), (5,1)$ respectively.
 
