@@ -223,7 +223,7 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
         """
         X, y = _to_pandas_dataframe(X, y)
         self._check_valid_params(X, y)
-        self.root = self.make_tree(X, y)
+        self._root = self.make_tree(X, y)
         return self
 
     def make_tree(self, X, y, *, parent_y=None, branch=None, depth=0):
@@ -316,7 +316,7 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
             )
         return best_node
 
-    def score(self, X, y):
+    def score(self, X, y, /):
         """Evaluate the decision tree model on the test set.
 
         The decision tree classifier makes predictions for each test
@@ -502,7 +502,7 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
         """
         X, y = _to_pandas_dataframe(X, y)
         self._check_valid_params(X, y)
-        self.root = self.make_tree(X, y)
+        self._root = self.make_tree(X, y)
         return self
 
     def make_tree(self, X, y, *, branch=None, depth=0):
@@ -583,7 +583,7 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
             )
         return best_node
 
-    def score(self, X, y):
+    def score(self, X, y, /):
         """Evaluate the decision tree model on the test set.
 
         The decision tree regressor makes predictions for each test sample

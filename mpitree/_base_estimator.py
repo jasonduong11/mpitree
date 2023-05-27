@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import abc
 from collections import deque
 from itertools import pairwise, starmap
 from operator import eq, ge, lt
@@ -15,7 +16,7 @@ from tabulate import tabulate
 from ._node import Node, logger
 
 
-class DecisionTreeEstimator:
+class DecisionTreeEstimator(metaclass=abc.ABCMeta):
     """A decision tree estimator.
 
     A decision tree base class for decision tree implementations specific
@@ -41,22 +42,24 @@ class DecisionTreeEstimator:
         Press, 2020.
     """
 
-    VALID_CRITERION = {"max_depth", "min_samples_split", "min_gain"}
-    VALID_PURITY = {"entropy", "gini"}
-    VALID_SPLITTER = {"ID3", "CART"}
+    _validate_parameter = {
+        "criterion": {"max_depth", "min_samples_split", "min_gain"},
+        "purity": {"entropy", "gini"},
+        "splitter": {"ID3", "CART"},
+    }
+    _root = None
     _n_levels = None
     _n_thresholds = {}
 
+    @abc.abstractmethod
     def __init__(
         self,
         *,
-        root=None,
         metric=None,
         criterion=None,
         splitter="ID3",
         purity="entropy",
     ):
-        self.root = root
         self.metric = metric
         self.criterion = criterion
         self.splitter = splitter
@@ -84,7 +87,7 @@ class DecisionTreeEstimator:
             Return a string-formatted decision tree.
         """
         if not other:
-            other = self.root
+            other = self._root
 
         yield other
         for child_node in other.children.values():
@@ -146,7 +149,7 @@ class DecisionTreeEstimator:
         """
         if not isinstance(other, self.__class__):
             raise TypeError(
-                f"Expected type 'DecisionTreeEstimator' but got {type(other)}"
+                "Expected type `DecisionTreeEstimator` but got type `%s`", type(other)
             )
         if not self.check_is_fitted or not other.check_is_fitted:
             raise AttributeError("At least one 'DecisionTreeEstimator' is not fitted")
@@ -174,13 +177,8 @@ class DecisionTreeEstimator:
         -------
         bool
             Returns true if the root node is a `Node` object.
-
-        See Also
-        --------
-        decision_tree.DecisionTreeClassifier.fit :
-            Performs the ID3 (Iterative Dichotomiser 3) algorithm.
         """
-        return isinstance(self.root, Node)
+        return isinstance(self._root, Node)
 
     def export_graphviz(self):
         """Displays a visual representation of a decision tree estimator.
@@ -206,7 +204,7 @@ class DecisionTreeEstimator:
                 yield node
                 queue.extend(node.children.values())
 
-        for parent in breadth_first_search(self.root):
+        for parent in breadth_first_search(self._root):
             tree.node(str(parent.branch), str(parent.value))
 
             for child in parent.children.values():
@@ -272,10 +270,10 @@ class DecisionTreeEstimator:
             self.criterion = {}
         elif not isinstance(self.criterion, dict):
             raise TypeError(
-                "Expected `criterion` to be type `dict` but got %s"
+                "Expected `criterion` attribute to be type `dict` but got type `%s`"
                 % type(self.criterion)
             )
-        elif keyerr := set(self.criterion) - self.VALID_CRITERION:
+        elif keyerr := set(self.criterion) - self._validate_parameter["criterion"]:
             raise KeyError("Found some unexpected keys: %s" % keyerr)
         elif any(i < 0 for i in self.criterion.values()):
             raise ValueError("Criterion values must be positive integers")
@@ -284,6 +282,18 @@ class DecisionTreeEstimator:
             d: ((lt, ge) if is_numeric_dtype(X[d]) else np.unique(X[d]))
             for d in X.columns
         }
+
+    @abc.abstractmethod
+    def fit(self, X, y, /):
+        ...
+
+    @abc.abstractmethod
+    def make_tree(self, X, y, *, parent_y=None, branch=None, depth=0):
+        ...
+
+    @abc.abstractmethod
+    def score(self, X, y, /):
+        ...
 
     def find_optimal_threshold(self, X, y, d):
         """Compute the optimal threshold between different target levels.
@@ -399,7 +409,7 @@ class DecisionTreeEstimator:
         decision_tree.DecisionTreeClasifier.score :
             Evaluate the decision tree model on the test set.
         """
-        node = self.root
+        node = self._root
         while not node.is_leaf:
             query_branch = x[node.value]
 
