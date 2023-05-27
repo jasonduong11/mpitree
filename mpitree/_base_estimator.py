@@ -12,7 +12,7 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 from tabulate import tabulate
 
-from .node import Node, logger
+from ._node import Node, logger
 
 
 class DecisionTreeEstimator:
@@ -43,16 +43,26 @@ class DecisionTreeEstimator:
 
     VALID_CRITERION = {"max_depth", "min_samples_split", "min_gain"}
     VALID_PURITY = {"entropy", "gini"}
+    VALID_SPLITTER = {"ID3", "CART"}
     _n_levels = None
     _n_thresholds = {}
 
-    def __init__(self, *, root=None, metric=None, criterion=None, purity="entropy"):
+    def __init__(
+        self,
+        *,
+        root=None,
+        metric=None,
+        criterion=None,
+        splitter="ID3",
+        purity="entropy",
+    ):
         self.root = root
         self.metric = metric
         self.criterion = criterion
+        self.splitter = splitter
         self.purity = purity
 
-    def __iter__(self, node=None):
+    def __iter__(self, other=None):
         """Perform a depth-first search on the decision tree.
 
         The traversal starts at the root node and recursively traverses
@@ -61,7 +71,7 @@ class DecisionTreeEstimator:
 
         Parameters
         ----------
-        node : Node, optional
+        other : Node, optional
             The subsequent node of the depth-first traversal.
 
         Yields
@@ -70,17 +80,17 @@ class DecisionTreeEstimator:
 
         See Also
         --------
-        DecisionTreeEstimator.__str__ :
+        DecisionTreeEstimator.__repr__ :
             Return a string-formatted decision tree.
         """
-        if not node:
-            node = self.root
+        if not other:
+            other = self.root
 
-        yield node
-        for child in node.children.values():
-            yield from self.__iter__(child)
+        yield other
+        for child_node in other.children.values():
+            yield from self.__iter__(child_node)
 
-    def __str__(self):
+    def __repr__(self):
         """Return a string-formatted decision tree.
 
         The output string of a decision tree is delimited by a single new-

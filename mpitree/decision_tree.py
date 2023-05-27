@@ -14,9 +14,9 @@ from mpi4py import MPI
 from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import accuracy_score, mean_squared_error
 
-from .base_estimator import DecisionTreeEstimator
-from .node import Node, logger
-from .utils.conversion import _to_pandas_dataframe
+from ._base_estimator import DecisionTreeEstimator
+from ._node import Node, logger
+from ._utils.conversion import _to_pandas_dataframe
 
 WORLD_COMM = MPI.COMM_WORLD
 WORLD_RANK = WORLD_COMM.Get_rank()
@@ -308,8 +308,12 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
             for level in self.n_levels[best_feature]
         ]
 
-        for *d, level in levels:
-            best_node += self.make_tree(*d, parent_y=y, branch=level, depth=depth + 1)
+        for *partition_data, level in levels:
+            best_node.add(
+                self.make_tree(
+                    *partition_data, parent_y=y, branch=level, depth=depth + 1
+                )
+            )
         return best_node
 
     def score(self, X, y):
@@ -573,8 +577,10 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
             for level in self.n_levels[best_feature]
         ]
 
-        for *d, level in levels:
-            best_node += self.make_tree(*d, branch=level, depth=depth + 1)
+        for *partition_data, level in levels:
+            best_node.add(
+                self.make_tree(*partition_data, branch=level, depth=depth + 1)
+            )
         return best_node
 
     def score(self, X, y):
@@ -741,17 +747,23 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
 
         if size == 1:
             for *d, level in levels:
-                best_node += self.make_tree(
-                    *d, comm=comm, parent_y=y, branch=level, depth=depth + 1
+                best_node.add(
+                    self.make_tree(
+                        *d, comm=comm, parent_y=y, branch=level, depth=depth + 1
+                    )
                 )
         else:
             group, color = Get_cyclic_dist(comm, len(levels))
-            *d, level = levels[color]
+            *partition_data, level = levels[color]
 
             sub_tree = comm.allgather(
                 {
                     level: self.make_tree(
-                        *d, comm=group, parent_y=y, branch=level, depth=depth + 1
+                        *partition_data,
+                        comm=group,
+                        parent_y=y,
+                        branch=level,
+                        depth=depth + 1,
                     )
                 }
             )

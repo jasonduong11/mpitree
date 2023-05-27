@@ -6,7 +6,7 @@ import unittest
 
 sys.path.append("..")
 
-from mpitree.node import Node
+from mpitree._node import Node
 
 
 class TestNode(unittest.TestCase):

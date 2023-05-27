@@ -93,15 +93,27 @@ class Node:
             "└── " if self.is_leaf else "├── " if self.depth else "┌── "
         )
 
+        value = self.value
+
+        def isfloat(value):
+            try:
+                float(value)
+            except ValueError:
+                return False
+            return True
+
         if not self.depth:
-            return spacing + str(self.value)
+            return spacing + str(value)
+
+        if self.is_leaf and isfloat(value):
+            value = f"{float(value):.2}"
 
         if self.parent and self.parent.threshold:
             # FIXME: better solution to extract operator
             # possibly make a indirect branch property
             op, _ = self.branch.split(" ")
-            return spacing + f"{self.value} [{op} {self.parent.threshold:.2f}]"
-        return spacing + f"{self.value} [{self.branch}]"
+            return spacing + f"{value} [{op} {self.parent.threshold:.2f}]"
+        return spacing + f"{value} [{self.branch}]"
 
     def __eq__(self, other: Node):
         """Check if two node objects are equivalent.
@@ -136,7 +148,7 @@ class Node:
             raise TypeError(f"Expected `Node` type but got: {type(other)}")
         return self.__dict__ == other.__dict__
 
-    def __add__(self, other: Node):
+    def add(self, other: Node):
         """Add another node to a existing node children.
 
         The operation will append another `Node` with its key, specified
