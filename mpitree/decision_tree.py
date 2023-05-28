@@ -22,13 +22,24 @@ WORLD_COMM = MPI.COMM_WORLD
 WORLD_RANK = WORLD_COMM.Get_rank()
 WORLD_SIZE = WORLD_COMM.Get_size()
 
+def Get_cyclic_dist(comm: MPI.Intracomm=None, *, n_block: int=1) -> MPI.Intracomm:
+    """Schedules processes in a cyclic distribution.
+    
+    Parameters
+    ----------
+    comm : MPI.Intracomm, default=None
+    n_block : int, default=1
 
-def Get_cyclic_dist(comm, p):
-    """ """
-    n = comm.Get_rank()
-    color, key = n % p, n // p
-    return comm.Split(color, key), color
+    Returns
+    -------
+    MPI.Intracomm
+    """
+    rank = comm.Get_rank()
+    key, color = divmod(rank, n_block)
 
+    return comm.Split(color, key)
+
+MPI.Get_cyclic_dist = Get_cyclic_dist
 
 class DecisionTreeClassifier(DecisionTreeEstimator):
     """A decision tree classifier.
@@ -753,8 +764,12 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
                     )
                 )
         else:
-            group, color = Get_cyclic_dist(comm, len(levels))
-            *partition_data, level = levels[color]
+            r = comm.Get_rank()
+            p = len(levels)
+
+            group = MPI.Get_cyclic_dist(comm, n_block=p)
+
+            *partition_data, level = levels[r % p]
 
             sub_tree = comm.allgather(
                 {
@@ -770,8 +785,8 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
 
             for d in sub_tree:
                 for level, node in d.items():
-                    node.parent = best_node
                     best_node.children[level] = node
+                    node.parent = best_node
 
             group.Free()
         return best_node
