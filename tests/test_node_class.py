@@ -6,7 +6,7 @@ import unittest
 
 sys.path.append("..")
 
-from mpitree._node import Node
+from mpitree._node import DecisionNode
 
 
 class TestNode(unittest.TestCase):
@@ -15,35 +15,39 @@ class TestNode(unittest.TestCase):
         pass
 
     def test_node_eq(self):
-        self.assertTrue(Node() == Node())
-        self.assertFalse(Node(value="Alice") == Node(value="Bob"))
+        self.assertTrue(DecisionNode() == DecisionNode())
+        self.assertFalse(DecisionNode(value="Alice") == DecisionNode(value="Bob"))
         with self.assertRaises(TypeError):
-            Node() == "Not a Node"
+            DecisionNode() == "Not a Node"
 
     def test_node_add(self):
-        self.assertFalse((Node() + Node(branch="< 0")).is_leaf)
+        self.assertFalse((DecisionNode() + DecisionNode(branch="< 0")).is_leaf)
         with self.assertRaises(AttributeError):
-            Node(branch="a") + Node()
+            DecisionNode(branch="a") + DecisionNode()
         with self.assertRaises(TypeError):
-            Node() + "Not a Node"
+            DecisionNode() + "Not a Node"
 
     def test_node_is_leaf(self):
-        self.assertTrue(Node().is_leaf)
-        self.assertFalse(Node(children={"Alice": Node()}).is_leaf)
+        self.assertTrue(DecisionNode().is_leaf)
+        self.assertFalse(DecisionNode(children={"Alice": DecisionNode()}).is_leaf)
         with self.assertRaises(TypeError):
-            Node(children="Not a Dict").is_leaf
+            DecisionNode(children="Not a Dict").is_leaf
 
     def test_node_left_property(self):
-        self.assertIsNone(Node().left)
-        self.assertEqual("Alice", Node(threshold=0, children={"< 0": "Alice"}).left)
+        self.assertIsNone(DecisionNode().left)
+        self.assertEqual(
+            "Alice", DecisionNode(threshold=0, children={"< 0": "Alice"}).left
+        )
         with self.assertRaises(TypeError):
-            Node(children="Not a Dict").left
+            DecisionNode(children="Not a Dict").left
 
     def test_node_right_property(self):
-        self.assertIsNone(Node().right)
-        self.assertEqual("Bob", Node(threshold=0, children={">= 0": "Bob"}).right)
+        self.assertIsNone(DecisionNode().right)
+        self.assertEqual(
+            "Bob", DecisionNode(threshold=0, children={">= 0": "Bob"}).right
+        )
         with self.assertRaises(TypeError):
-            Node(children="Not a Dict").left
+            DecisionNode(children="Not a Dict").left
 
 
 if __name__ == "__main__":

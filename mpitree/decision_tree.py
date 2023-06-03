@@ -15,16 +15,17 @@ from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import accuracy_score, mean_squared_error
 
 from ._base_estimator import DecisionTreeEstimator
-from ._node import Node, logger
+from ._node import DecisionNode, logger
 from ._utils.conversion import _to_pandas_dataframe
 
 WORLD_COMM = MPI.COMM_WORLD
 WORLD_RANK = WORLD_COMM.Get_rank()
 WORLD_SIZE = WORLD_COMM.Get_size()
 
-def Get_cyclic_dist(comm: MPI.Intracomm=None, *, n_block: int=1) -> MPI.Intracomm:
+
+def Get_cyclic_dist(comm: MPI.Intracomm = None, *, n_block: int = 1) -> MPI.Intracomm:
     """Schedules processes in a cyclic distribution.
-    
+
     Parameters
     ----------
     comm : MPI.Intracomm, default=None
@@ -39,7 +40,9 @@ def Get_cyclic_dist(comm: MPI.Intracomm=None, *, n_block: int=1) -> MPI.Intracom
 
     return comm.Split(color, key)
 
+
 MPI.Get_cyclic_dist = Get_cyclic_dist
+
 
 class DecisionTreeClassifier(DecisionTreeEstimator):
     """A decision tree classifier.
@@ -92,8 +95,7 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
     ...         ],
     ...     }
     ... )
-    >>> df = pd.DataFrame(data)
-    >>> X, y = df.iloc[:, :-1], df.iloc[:, -1]
+    >>> X, y = data.iloc[:, :-1], data.iloc[:, -1]
     >>> clf = DecisionTreeClassifier().fit(X, y)
     >>> print(clf)
     ┌── Elevation
@@ -137,9 +139,9 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
     """
 
     def __init__(self, *, criterion=None):
-        super().__init__(metric=self.find_entropy, criterion=criterion)
+        super().__init__(purity=self.entropy, criterion=criterion)
 
-    def find_entropy(self, X, y):
+    def entropy(self, X, y, /):
         """Measure the amount of impurity.
 
         Entropy is a weighted sum of the logs of the probabilities of se
@@ -159,11 +161,10 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
         proba = np.unique(y, return_counts=True)[1] / len(X)
         return -np.sum(proba * np.log2(proba))
 
-    def find_rem(self, X, y, d):
+    def cond_entropy(self, X, y, d, /):
         """Measure the resultant entropy on a tested feature.
 
-        Rem is a conditional entropy where the entropy is measured on a
-        partitioned dataset.
+        Conditional entropy is the entropy is measured on a partitioned dataset.
 
         Parameters
         ----------
@@ -177,10 +178,10 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
         float
         """
         weight = np.unique(X[d], return_counts=True)[1] / len(X)
-        metric = [self.metric(X[X[d] == t], y[X[d] == t]) for t in np.unique(X[d])]
-        return np.dot(weight, metric)
+        purity = [self.purity(X[X[d] == t], y[X[d] == t]) for t in np.unique(X[d])]
+        return np.dot(weight, purity)
 
-    def find_information_gain(self, X, y, d):
+    def find_information_gain(self, X, y, d, /):
         """Measure the reduction in the overall entropy given a feature.
 
         Information gain is the measure of the reduction in the overall
@@ -202,14 +203,14 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
         if is_numeric_dtype(X[d]):
             gain, optimal_threshold, rem = super().find_optimal_threshold(X, y, d)
             self.n_thresholds[d] = optimal_threshold
-            logger.info("%s = %d - %d = %d", d, self.metric(X, y), rem, gain)
+            logger.info("%s = %d - %d = %d", d, self.purity(X, y), rem, gain)
         else:
-            gain = self.metric(X, y) - self.find_rem(X, y, d)
+            gain = self.purity(X, y) - self.cond_entropy(X, y, d)
             logger.info(
                 "%s = %d - %d = %d",
                 d,
-                self.metric(X, y),
-                self.find_rem(X, y, d),
+                self.purity(X, y),
+                self.cond_entropy(X, y, d),
                 gain,
             )
         return gain
@@ -234,10 +235,10 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
         """
         X, y = _to_pandas_dataframe(X, y)
         self._check_valid_params(X, y)
-        self._root = self.make_tree(X, y)
+        self._root = self._make_tree(X, y)
         return self
 
-    def make_tree(self, X, y, *, parent_y=None, branch=None, depth=0):
+    def _make_tree(self, X, y, /, *, parent_y=None, branch=None, depth=0):
         """Perform the ID3 (Iterative Dichotomiser 3) algorithm.
 
         The ID3 algorithm recursively grows the tree in a depth-first
@@ -280,7 +281,7 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
         """
 
         def make_node(value):
-            return Node(value=value, branch=branch, depth=depth)
+            return DecisionNode(value=value, branch=branch, depth=depth)
 
         if len(np.unique(y)) == 1:
             logger.info("All instances have the same labels (%s)", mode(y))
@@ -321,7 +322,7 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
 
         for *partition_data, level in levels:
             best_node.add(
-                self.make_tree(
+                self._make_tree(
                     *partition_data, parent_y=y, branch=level, depth=depth + 1
                 )
             )
@@ -429,9 +430,9 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
     """
 
     def __init__(self, *, criterion=None):
-        super().__init__(metric=self.find_variance, criterion=criterion)
+        super().__init__(purity=self.find_variance, criterion=criterion)
 
-    def find_variance(self, X, y):
+    def find_variance(self, X, y, /):
         """Compute the variance on each target level.
 
         The variance refers to the amount of dispersion for values in a
@@ -457,7 +458,7 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
         )
         return np.sum([(t - mean(y)) ** 2 for t in y]) / (len(X) - 1)
 
-    def find_weighted_variance(self, X, y, d):
+    def find_weighted_variance(self, X, y, d, /):
         """Compute the weighted variance on each target level.
 
         The weighted variance computes the variance for each value of a
@@ -487,8 +488,8 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
             logger.info(gain)
         else:
             weight = np.unique(X[d], return_counts=True)[1] / len(X)
-            metric = [self.metric(X[X[d] == t], y[X[d] == t]) for t in np.unique(X[d])]
-            gain = np.dot(weight, metric)
+            purity = [self.purity(X[X[d] == t], y[X[d] == t]) for t in np.unique(X[d])]
+            gain = np.dot(weight, purity)
         return gain
 
     def fit(self, X, y, /):
@@ -513,10 +514,10 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
         """
         X, y = _to_pandas_dataframe(X, y)
         self._check_valid_params(X, y)
-        self._root = self.make_tree(X, y)
+        self._root = self._make_tree(X, y)
         return self
 
-    def make_tree(self, X, y, *, branch=None, depth=0):
+    def _make_tree(self, X, y, /, *, branch=None, depth=0):
         """Perform the ID3 algorithm.
 
         Parameters
@@ -545,7 +546,7 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
         """
 
         def make_node(value):
-            return Node(value=value, branch=branch, depth=depth)
+            return DecisionNode(value=value, branch=branch, depth=depth)
 
         if len(np.unique(y)) == 1:
             logger.info("All instances have the same labels (%s)", str(y.mean()))
@@ -590,7 +591,7 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
 
         for *partition_data, level in levels:
             best_node.add(
-                self.make_tree(*partition_data, branch=level, depth=depth + 1)
+                self._make_tree(*partition_data, branch=level, depth=depth + 1)
             )
         return best_node
 
@@ -646,7 +647,9 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         WORLD_COMM.Barrier()
         super().fit(X, y)
 
-    def make_tree(self, X, y, *, comm=WORLD_COMM, parent_y=None, branch=None, depth=0):
+    def _make_tree(
+        self, X, y, /, comm=WORLD_COMM, *, parent_y=None, branch=None, depth=0
+    ):
         """Perform the ID3 (Iterative Dichotomiser 3) algorithm.
 
         See `DecisionTreeClassifier.make_tree` for a more detailed
@@ -673,56 +676,10 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         -------
         best_node : Node
             The root node of the parallel decision tree classifier.
-
-        Notes
-        -----
-        For every interior decision tree node created, a variable number
-        of processes collectively calculate the best feature to split
-        *(i.e., the feature that provides the most information gain)* in
-        addition to the *divide and conquer* strategy. During the *divide*
-        phase, processes in a *communicator* are split approximately
-        evenly across all levels of the split feature. Let :math:`n` be
-        the number of processes and :math:`p` be the number of levels,
-        then each distribution, :math:`m`, contains at least
-        :math:`\\lfloor n/p \\rfloor` processes and at most one
-        distribution has at most :math:`\\lceil n/p \\rceil` processes
-        where :math:`n\\nmid p`. During the *conquer* phase, processes in a
-        distribution independently participate among themselves at their
-        respective levels. In detail, processes are assigned in the cyclic
-        distribution or round-robin fashion where
-
-        .. math:: comm=(\\lfloor ranks/m \\rfloor)\\mod p
-        .. math:: rank=comm_{size}/rank
-
-        Each routine waits for their respective processes from their
-        original *communicator* to finish executing. The completion of a
-        routine results in a sub-tree on a particular path from the root,
-        and the local communicator is de-allocated. The algorithm
-        terminates when all sub-trees are recursively gathered to the root
-        process.
-
-        .. note::
-            All processes only perform a split during the *divide* phase
-            in a given communicator at an interior node. Therefore, a leaf
-            node may consist of more than one process, because the purity
-            measurement at a node is independent of the number of
-            processes.
-
-        Examples
-        --------
-        https://raw.githubusercontent.com/duong-jason/mpitree/main/images/process_split.png
-
-        In the above diagram, the root node consists of eight total
-        processes, :math:`p_0, p_1, ..., p_7`, with three distinct feature
-        levels, :math:`l_0, l_1, l_2`. Group 1 consists of processes and
-        ranks, :math:`(0,0), (1,1), (6,2), (7,3)` respectively, Group 2
-        consists of processes and ranks, :math:`(2,0), (3,1)` respectively
-        and Group 3 consists of processes and ranks, :math:`(4,0), (5,1)`
-        respectively.
         """
 
         def make_node(value):
-            return Node(value=value, branch=branch, depth=depth)
+            return DecisionNode(value=value, branch=branch, depth=depth)
 
         size = comm.Get_size()
 
@@ -759,7 +716,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         if size == 1:
             for *d, level in levels:
                 best_node.add(
-                    self.make_tree(
+                    self._make_tree(
                         *d, comm=comm, parent_y=y, branch=level, depth=depth + 1
                     )
                 )
@@ -773,7 +730,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
 
             sub_tree = comm.allgather(
                 {
-                    level: self.make_tree(
+                    level: self._make_tree(
                         *partition_data,
                         comm=group,
                         parent_y=y,

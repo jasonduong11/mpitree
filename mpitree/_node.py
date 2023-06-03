@@ -14,7 +14,7 @@ logger.getLogger("matplotlib.font_manager").disabled = True
 
 
 @dataclass(kw_only=True)
-class Node:
+class DecisionNode:
     """A decision tree node.
 
     The decision tree node defines the attributes and properties of a
@@ -66,7 +66,7 @@ class Node:
     value: Union[str, float] = None
     threshold: Optional[float] = None
     branch: str = None
-    parent: Optional[Node] = None
+    parent: Optional[DecisionNode] = None
     depth: int = field(default_factory=int)
     children: dict = field(default_factory=dict)
 
@@ -95,18 +95,18 @@ class Node:
 
         value = self.value
 
-        def isfloat(value):
-            try:
-                float(value)
-            except ValueError:
-                return False
-            return True
+        # def isfloat(value):
+        #     try:
+        #         float(value)
+        #     except ValueError:
+        #         return False
+        #     return True
 
         if not self.depth:
             return spacing + str(value)
 
-        if self.is_leaf and isfloat(value):
-            value = f"{float(value):.2}"
+        # if self.is_leaf and isfloat(value):
+        #     value = f"{float(value):.2}"
 
         if self.parent and self.parent.threshold:
             # FIXME: better solution to extract operator
@@ -115,7 +115,7 @@ class Node:
             return spacing + f"{value} [{op} {self.parent.threshold:.2f}]"
         return spacing + f"{value} [{self.branch}]"
 
-    def __eq__(self, other: Node):
+    def __eq__(self, other: DecisionNode):
         """Check if two node objects are equivalent.
 
         Performs a pair-wise comparison among attributes of both `Node`
@@ -148,7 +148,7 @@ class Node:
             raise TypeError(f"Expected `Node` type but got: {type(other)}")
         return self.__dict__ == other.__dict__
 
-    def add(self, other: Node):
+    def add(self, other: DecisionNode):
         """Add another node to a existing node children.
 
         The operation will append another `Node` with its key, specified

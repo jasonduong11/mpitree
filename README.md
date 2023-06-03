@@ -37,7 +37,7 @@ The Parallel Decision Tree algorithm schedules processes in a cyclic distributio
 
 A terminated routine call results in a sub-tree on a particular path from the root, and the *local* communicator is de-allocated. The algorithm terminates when all sub-trees are recursively gathered to the root process.
 
-The table above shows eight total processes ranked $(0, 1, ..., 7)$, distributed across three feature levels. Group $0$ consists of processes and ranks, $(0,0),(3,1),(6,2)$ respectively, Group $1$ consists of processes and ranks, $(1,0),(4,1),(7,2)$ respectively and Group $2$ consists of processes and ranks, $(2,0), (5,1)$ respectively.
+The table above shows a set of eight processes ranked $(0, 1, ..., 7)$, distributed across three feature levels. Group $0$ consists of a set of processes and ranks, $\{(0,0),(3,1),(6,2)\}$ respectively, Group $1$ consists of a set of processes and ranks, $\{(1,0),(4,1),(7,2)\}$ respectively and Group $2$ consists of a set of processes and ranks, $\{(2,0), (5,1)\}$ respectively.
 
 ## Requirements
 
@@ -95,7 +95,7 @@ Train/Test Accuracy: (95.00%, 96.67%)
 
 Overfitting becomes apparent as the decision tree gets deeper because predictions are based on smaller and smaller cuboidal regions of the feature space. In a sense, the decision tree model is biasing towards *singleton* nodes; and, therefore, may cause mispredictions in the likelihood of noisy data.
 
-Pre-and-post-pruning techniques are some solutions to reduce the likelihood of an overfitted decision tree. Pre-pruning techniques introduce early stopping criteria *(e.g., depth, number of samples)*. One may resort to validation methodologies *(e.g., k-fold Cross-Validation)*in both pruning techniques.
+Pre-and-post-pruning techniques are some solutions to reduce the likelihood of an overfitted decision tree. Pre-pruning techniques introduce early stopping criteria *(e.g., depth, number of samples)*. One may resort to validation methodologies *(e.g., k-fold Cross-Validation)* in both pruning techniques.
 
 The figure below depicts various decision boundaries for different values of the `max_depth` hyperparameter. We used the *iris* dataset provided by *scikit-learn* as it gives a base analysis for our (parallel) decision tree implementation. The figure demonstrates how noisy instances may negatively impact the performance of the decision tree model.
 

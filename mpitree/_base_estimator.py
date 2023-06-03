@@ -13,7 +13,7 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 from tabulate import tabulate
 
-from ._node import Node, logger
+from ._node import DecisionNode, logger
 
 
 class DecisionTreeEstimator(metaclass=abc.ABCMeta):
@@ -27,7 +27,7 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
     root : Node, default=None
         The start node with depth zero of a decision tree.
 
-    metric : {'find_entropy', 'find_variance'}
+    purity : {'find_entropy', 'find_variance'}
         The measure of impurity used for calculating the information gain.
 
     criterion : {'max_depth', 'min_samples_split', 'min_gain'}, optional
@@ -44,8 +44,8 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
 
     _validate_parameter = {
         "criterion": {"max_depth", "min_samples_split", "min_gain"},
-        "purity": {"entropy", "gini"},
         "splitter": {"ID3", "CART"},
+        "purity": {"entropy", "gini"},
     }
     _root = None
     _n_levels = None
@@ -55,15 +55,13 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
     def __init__(
         self,
         *,
-        metric=None,
         criterion=None,
         splitter="ID3",
         purity="entropy",
     ):
-        self.metric = metric
+        self.purity = purity
         self.criterion = criterion
         self.splitter = splitter
-        self.purity = purity
 
     def __iter__(self, other=None):
         """Perform a depth-first search on the decision tree.
@@ -178,7 +176,7 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
         bool
             Returns true if the root node is a `Node` object.
         """
-        return isinstance(self._root, Node)
+        return isinstance(self._root, DecisionNode)
 
     def export_graphviz(self):
         """Displays a visual representation of a decision tree estimator.
@@ -288,7 +286,7 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    def make_tree(self, X, y, *, parent_y=None, branch=None, depth=0):
+    def _make_tree(self, X, y, /, *, parent_y=None, branch=None, depth=0):
         ...
 
     @abc.abstractmethod
@@ -343,13 +341,13 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
             level = df[df[d] < threshold], df[df[d] >= threshold]
             weight = np.array([len(i) / len(df) for i in level])
 
-            metric_total = self.metric(df.iloc[:, :-1], df.iloc[:, -1])
+            metric_total = self.purity(df.iloc[:, :-1], df.iloc[:, -1])
             metric_partial = [
-                self.metric(level[0].iloc[:, :-1], level[0].iloc[:, -1]),
-                self.metric(level[1].iloc[:, :-1], level[1].iloc[:, -1]),
+                self.purity(level[0].iloc[:, :-1], level[0].iloc[:, -1]),
+                self.purity(level[1].iloc[:, :-1], level[1].iloc[:, -1]),
             ]
 
-            rem = weight.dot(metric_partial)
+            rem = np.dot(weight, metric_partial)
             levels.append(metric_total - rem)
 
         t_hat = thresholds[np.argmax(levels)]

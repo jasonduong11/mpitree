@@ -79,17 +79,17 @@ class TestDecisionTreeEstimator(unittest.TestCase):
 class TestDecisionTreeClassifier(unittest.TestCase):
     def test_find_entropy(self):
         X, y = generate_data({"A": ["a"], "y": ["+"]})
-        self.assertEqual(DecisionTreeClassifier().find_entropy(X, y), 0)
+        self.assertEqual(DecisionTreeClassifier().entropy(X, y), 0)
 
         X, y = generate_data({"A": ["a", "a"], "y": ["+", "-"]})
-        self.assertEqual(DecisionTreeClassifier().find_entropy(X, y), 1)
+        self.assertEqual(DecisionTreeClassifier().entropy(X, y), 1)
 
     def test_find_rem(self):
         X, y = generate_data({"A": ["a", "b"], "y": ["+", "-"]})
-        self.assertEqual(DecisionTreeClassifier().find_rem(X, y, "A"), 0)
+        self.assertEqual(DecisionTreeClassifier().cond_entropy(X, y, "A"), 0)
 
         X, y = generate_data({"A": ["a", "a"], "y": ["+", "-"]})
-        self.assertEqual(DecisionTreeClassifier().find_rem(X, y, "A"), 1)
+        self.assertEqual(DecisionTreeClassifier().cond_entropy(X, y, "A"), 1)
 
     def test_find_optimal_threshold(self):
         X, y = generate_data({"A": [0, 1, 2, 3], "y": ["0", "1", "0", "1"]})
