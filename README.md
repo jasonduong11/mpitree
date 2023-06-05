@@ -54,7 +54,7 @@ git clone https://github.com/ben-my-to/mpitree.git
 cd mpitree && make install
 ```
 
-## Example using the *iris* dataset
+## Example using the `sklearn.datasets.load_iris` dataset
 
 ```python
 from sklearn.datasets import load_iris
@@ -83,6 +83,7 @@ if not WORLD_RANK:
 ### Executing `iris.py` with 5 processes
 
 ```bash
+$ mpirun -n 5 python3 iris.py
 ┌── petal length (cm)
 │  └── 0 [< 2.45]
 │  ├── petal length (cm) [>= 2.45]

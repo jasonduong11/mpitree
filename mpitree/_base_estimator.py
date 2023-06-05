@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import abc
-from collections import deque
 from itertools import pairwise, starmap
 from operator import eq, ge, lt
 
-import graphviz
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
@@ -178,41 +176,6 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
         """
         return isinstance(self._root, DecisionNode)
 
-    def export_graphviz(self):
-        """Displays a visual representation of a decision tree estimator.
-
-        The decision tree estimator visualization is generated using `graphviz`
-        library.
-
-        Returns
-        -------
-        graphviz.graphs.Digraph
-            Returns a graphviz digraph object.
-        """
-        tree = graphviz.Digraph(
-            "Decision Tree",
-            filename="decision_tree",
-            node_attr={"shape": "box"},
-        )
-
-        def breadth_first_search(source):
-            queue = deque([source])
-            while queue:
-                node = queue.popleft()
-                yield node
-                queue.extend(node.children.values())
-
-        for parent in breadth_first_search(self._root):
-            tree.node(str(parent.branch), str(parent.value))
-
-            for child in parent.children.values():
-                tree.node(str(child.branch), str(child.value))
-                tree.edge(
-                    str(parent.branch), str(child.branch), label=str(child.branch)
-                )
-
-        return tree
-
     def _check_valid_params(self, X, y, /):
         """Check parameters have valid values.
 
@@ -280,18 +243,6 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
             d: ((lt, ge) if is_numeric_dtype(X[d]) else np.unique(X[d]))
             for d in X.columns
         }
-
-    @abc.abstractmethod
-    def fit(self, X, y, /):
-        ...
-
-    @abc.abstractmethod
-    def _make_tree(self, X, y, /, *, parent_y=None, branch=None, depth=0):
-        ...
-
-    @abc.abstractmethod
-    def score(self, X, y, /):
-        ...
 
     def find_optimal_threshold(self, X, y, d):
         """Compute the optimal threshold between different target levels.
@@ -375,7 +326,7 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
         idx = X[d] == op
         return X.loc[idx].drop(d, axis=1), y.loc[idx], op
 
-    def predict(self, x):
+    def predict(self, X):
         """Predict a test sample on a decision tree.
 
         The function traverses the decision tree by looking up the feature
@@ -409,7 +360,7 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
         """
         node = self._root
         while not node.is_leaf:
-            query_branch = x[node.value]
+            query_branch = X[node.value]
 
             if is_numeric_dtype(query_branch):
                 next_node = node.left if query_branch < node.threshold else node.right
@@ -425,3 +376,15 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
                     )
             node = next_node
         return node.value
+
+    @abc.abstractmethod
+    def fit(self, X, y, /):
+        ...
+
+    @abc.abstractmethod
+    def _make_tree(self, X, y, /, *, parent_y=None, branch=None, depth=0):
+        ...
+
+    @abc.abstractmethod
+    def score(self, X, y, /):
+        ...
