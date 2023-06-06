@@ -16,7 +16,7 @@ class TestNode(unittest.TestCase):
 
     def test_node_eq(self):
         self.assertTrue(DecisionNode() == DecisionNode())
-        self.assertFalse(DecisionNode(value="Alice") == DecisionNode(value="Bob"))
+        self.assertFalse(DecisionNode(feature="Alice") == DecisionNode(feature="Bob"))
         with self.assertRaises(TypeError):
             DecisionNode() == "Not a Node"
 

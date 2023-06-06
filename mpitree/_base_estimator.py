@@ -344,7 +344,7 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        node.value : str or float
+        node.feature : str or float
             The class (classification) label or real (regression) value
             for a prediction on `x`.
 
@@ -363,7 +363,7 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
 
         node = self._root
         while not node.is_leaf:
-            query_branch = X[node.value]
+            query_branch = X[node.feature]
 
             if is_numeric_dtype(query_branch):
                 next_node = node.left if query_branch < node.threshold else node.right
@@ -373,12 +373,12 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
                 except KeyError:
                     logger.error(
                         "Branch %s -> %s does not exist",
-                        node.value,
+                        node.feature,
                         query_branch,
                         exec_info=True,
                     )
             node = next_node
-        return node.value
+        return node.feature
 
     @abc.abstractmethod
     def fit(self, X, y, /):

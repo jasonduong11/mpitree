@@ -22,7 +22,7 @@ class DecisionNode:
 
     Parameters
     ----------
-    value : str or float, default=None
+    feature : str or float, default=None
         The descriptive or target feature value.
 
     threshold : float, optional
@@ -40,7 +40,7 @@ class DecisionNode:
     children : dict, default={}
         The nodes on each split of the parent node.
 
-    hist : dict, default={}
+    shape : dict, default={}
 
     samples : int, default=0
 
@@ -55,16 +55,16 @@ class DecisionNode:
         *numerical* features.
     """
 
-    value: Union[str, float] = None
+    feature: Union[str, float] = None
     threshold: Optional[float] = None
     branch: str = None
     parent: Optional[DecisionNode] = None
     depth: int = field(default_factory=int)
     children: dict = field(default_factory=dict)
-    hist: dict = field(default_factory=dict)
+    shape: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        self.samples = sum(self.hist.values())
+        self.samples = sum(self.shape.values())
 
     def __str__(self):
         """Output a string-formatted node.
@@ -89,7 +89,7 @@ class DecisionNode:
             "└── " if self.is_leaf else "├── " if self.depth else "┌── "
         )
 
-        value = self.value
+        value = self.feature
         branch = self.branch
         if self.parent and self.parent.threshold:
             # FIXME: better solution to extract operator

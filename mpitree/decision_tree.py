@@ -282,7 +282,7 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
 
         def make_node(value):
             return DecisionNode(
-                value=value, branch=branch, depth=depth, hist=dict(y.value_counts())
+                feature=value, branch=branch, depth=depth, shape=dict(y.value_counts())
             )
 
         if len(np.unique(y)) == 1:
@@ -336,7 +336,7 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
 
         node = self._root
         while not node.is_leaf:
-            query_branch = X[node.value]
+            query_branch = X[node.feature]
 
             if is_numeric_dtype(query_branch):
                 next_node = node.left if query_branch < node.threshold else node.right
@@ -346,12 +346,12 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
                 except KeyError:
                     logger.error(
                         "Branch %s -> %s does not exist",
-                        node.value,
+                        node.feature,
                         query_branch,
                         exec_info=True,
                     )
             node = next_node
-        return np.array(list(map(lambda f: f / node.samples, node.hist)))
+        return np.array(list(map(lambda f: f / node.samples, node.shape)))
 
     def score(self, X, y, /):
         """Evaluate the decision tree model on the test set.
@@ -571,7 +571,7 @@ class DecisionTreeRegressor(DecisionTreeEstimator):
         """
 
         def make_node(value):
-            return DecisionNode(value=value, branch=branch, depth=depth)
+            return DecisionNode(feature=value, branch=branch, depth=depth)
 
         if len(np.unique(y)) == 1:
             logger.info("All instances have the same labels (%s)", str(y.mean()))
@@ -704,7 +704,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         """
 
         def make_node(value):
-            return DecisionNode(value=value, branch=branch, depth=depth)
+            return DecisionNode(feature=value, branch=branch, depth=depth)
 
         size = comm.Get_size()
 
