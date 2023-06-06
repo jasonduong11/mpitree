@@ -281,7 +281,9 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
         """
 
         def make_node(value):
-            return DecisionNode(value=value, branch=branch, depth=depth)
+            return DecisionNode(
+                value=value, branch=branch, depth=depth, hist=dict(y.value_counts())
+            )
 
         if len(np.unique(y)) == 1:
             logger.info("All instances have the same labels (%s)", mode(y))
@@ -327,6 +329,29 @@ class DecisionTreeClassifier(DecisionTreeEstimator):
                 )
             )
         return best_node
+
+    def predict_prob(self, X, /):
+        if not self.check_is_fitted:
+            raise AttributeError("Decision tree is not fitted")
+
+        node = self._root
+        while not node.is_leaf:
+            query_branch = X[node.value]
+
+            if is_numeric_dtype(query_branch):
+                next_node = node.left if query_branch < node.threshold else node.right
+            else:
+                try:
+                    next_node = node.children[query_branch]
+                except KeyError:
+                    logger.error(
+                        "Branch %s -> %s does not exist",
+                        node.value,
+                        query_branch,
+                        exec_info=True,
+                    )
+            node = next_node
+        return np.array(list(map(lambda f: f / node.samples, node.hist)))
 
     def score(self, X, y, /):
         """Evaluate the decision tree model on the test set.

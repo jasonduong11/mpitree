@@ -345,8 +345,8 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
         Returns
         -------
         node.value : str or float
-            The class (classification) real (regression) label for
-            a prediction on `x`.
+            The class (classification) label or real (regression) value
+            for a prediction on `x`.
 
         Raises
         ------
@@ -358,6 +358,9 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
         decision_tree.DecisionTreeClasifier.score :
             Evaluate the decision tree model on the test set.
         """
+        if not self.check_is_fitted:
+            raise AttributeError("Decision tree is not fitted")
+
         node = self._root
         while not node.is_leaf:
             query_branch = X[node.value]
@@ -383,6 +386,10 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def _make_tree(self, X, y, /, *, parent_y=None, branch=None, depth=0):
+        ...
+
+    @abc.abstractmethod
+    def predict_prob(self, X, /):
         ...
 
     @abc.abstractmethod

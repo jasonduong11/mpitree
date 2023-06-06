@@ -26,7 +26,6 @@ class DecisionNode:
         The descriptive or target feature value.
 
     threshold : float, optional
-        The numerical feature value used to partition dataset into two levels (the
         default is `None`, implying the split feature is *categorical*).
 
     branch : str, default=None
@@ -41,6 +40,10 @@ class DecisionNode:
     children : dict, default={}
         The nodes on each split of the parent node.
 
+    hist : dict, default={}
+
+    samples : int, default=0
+
     Notes
     -----
     .. note::
@@ -50,17 +53,6 @@ class DecisionNode:
         The `branch` attribute is assigned a value from the set of unique feature values
         for *categorical* features and is assigned ``[< | >=] threshold`` for
         *numerical* features.
-
-    Examples
-    --------
-    >>> from mpitree.base_estimator import Node
-    >>> Node()
-    Node(value=None, threshold=None, branch=None, parent=None, depth=0, children={})
-
-    Numerical-featured node with ``threshold=5.0`` at ``feature="B"``:
-
-    >>> Node(value="B", threshold=5.0, children={"< 5.0": ..., ">= 5.0": ...})
-    Node(value='B', threshold=5.0, ..., children={'< 5.0': ..., '>= 5.0': ...})
     """
 
     value: Union[str, float] = None
@@ -69,6 +61,10 @@ class DecisionNode:
     parent: Optional[DecisionNode] = None
     depth: int = field(default_factory=int)
     children: dict = field(default_factory=dict)
+    hist: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.samples = sum(self.hist.values())
 
     def __str__(self):
         """Output a string-formatted node.
@@ -94,6 +90,12 @@ class DecisionNode:
         )
 
         value = self.value
+        branch = self.branch
+        if self.parent and self.parent.threshold:
+            # FIXME: better solution to extract operator
+            # possibly make a indirect branch property
+            op, _ = self.branch.split(" ")
+            branch = f"{op} {self.parent.threshold:.2f}"
 
         # def isfloat(value):
         #     try:
@@ -108,12 +110,7 @@ class DecisionNode:
         # if self.is_leaf and isfloat(value):
         #     value = f"{float(value):.2}"
 
-        if self.parent and self.parent.threshold:
-            # FIXME: better solution to extract operator
-            # possibly make a indirect branch property
-            op, _ = self.branch.split(" ")
-            return spacing + f"{value} [{op} {self.parent.threshold:.2f}]"
-        return spacing + f"{value} [{self.branch}]"
+        return spacing + f"{value} [{branch}]"
 
     def __eq__(self, other: DecisionNode):
         """Check if two node objects are equivalent.
