@@ -24,7 +24,7 @@ WORLD_SIZE = WORLD_COMM.Get_size()
 
 
 def Get_cyclic_dist(comm: MPI.Intracomm = None, *, n_block: int = 1) -> MPI.Intracomm:
-    """Schedules processes in a cyclic distribution.
+    """Schedules processes in a round-robin fashion.
 
     Parameters
     ----------
@@ -37,7 +37,6 @@ def Get_cyclic_dist(comm: MPI.Intracomm = None, *, n_block: int = 1) -> MPI.Intr
     """
     rank = comm.Get_rank()
     key, color = divmod(rank, n_block)
-
     return comm.Split(color, key)
 
 

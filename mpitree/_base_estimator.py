@@ -57,9 +57,9 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
         splitter="ID3",
         purity="entropy",
     ):
-        self.purity = purity
         self.criterion = criterion
         self.splitter = splitter
+        self.purity = purity
 
     def __iter__(self, other=None):
         """Perform a depth-first search on the decision tree.
@@ -70,12 +70,12 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
 
         Parameters
         ----------
-        other : Node, optional
+        other : DecisionNode, optional
             The subsequent node of the depth-first traversal.
 
         Yields
         ------
-        Node
+        DecisionNode
 
         See Also
         --------
@@ -382,10 +382,6 @@ class DecisionTreeEstimator(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def fit(self, X, y, /):
-        ...
-
-    @abc.abstractmethod
-    def _make_tree(self, X, y, /, *, parent_y=None, branch=None, depth=0):
         ...
 
     @abc.abstractmethod

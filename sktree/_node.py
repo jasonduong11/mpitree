@@ -2,15 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from typing import Optional, Union
-
-logger = logging
-logger.basicConfig(
-    level=logger.DEBUG, format="%(message)s", filename="debug.log", filemode="w"
-)
-logger.getLogger("matplotlib.font_manager").disabled = True
 
 
 @dataclass(kw_only=True)
@@ -40,7 +33,7 @@ class DecisionNode:
     children : dict, default={}
         The nodes on each split of the parent node.
 
-    shape : dict, default={}
+    shape : list, default=[]
 
     samples : int, default=0
 
@@ -61,10 +54,10 @@ class DecisionNode:
     parent: Optional[DecisionNode] = None
     depth: int = field(default_factory=int)
     children: dict = field(default_factory=dict)
-    shape: dict = field(default_factory=dict)
+    shape: list = field(default_factory=list)
 
     def __post_init__(self):
-        self.samples = sum(self.shape.values())
+        self.samples = sum(self.shape)
 
     def __str__(self):
         """Output a string-formatted node.
