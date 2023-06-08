@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
@@ -24,18 +25,20 @@ class DecisionNode:
     branch : str, default=None
         The feature value of a split from the parent node.
 
-    parent : Node, optional
+    parent : DecisionNode, optional
         The precedent node.
 
     depth : int, default=0
         The number of levels from the root to a node.
 
-    children : dict, default={}
+    children : OrderedDict, default={}
         The nodes on each split of the parent node.
+
+        *** add information on ordering of branches ***
 
     shape : list, default=[]
 
-    samples : int, default=0
+    n_samples : int, default=0
 
     Notes
     -----
@@ -53,11 +56,11 @@ class DecisionNode:
     branch: str = None
     parent: Optional[DecisionNode] = None
     depth: int = field(default_factory=int)
-    children: dict = field(default_factory=dict)
+    children: OrderedDict = field(default_factory=dict)
     shape: list = field(default_factory=list)
 
     def __post_init__(self):
-        self.samples = sum(self.shape)
+        self.n_samples = sum(self.shape)
 
     def __str__(self):
         """Output a string-formatted node.
@@ -76,7 +79,7 @@ class DecisionNode:
             If the `depth` is a negative integer.
         """
         if self.depth < 0:
-            raise ValueError("Node depth attribute must be positive.")
+            raise ValueError("DecisionNode `depth` attribute must be positive.")
 
         spacing = self.depth * "│  " + (
             "└── " if self.is_leaf else "├── " if self.depth else "┌── "
@@ -112,26 +115,26 @@ class DecisionNode:
     def __eq__(self, other: DecisionNode):
         """Check if two node objects are equivalent.
 
-        Performs a pair-wise comparison among attributes of both `Node`
+        Performs a pair-wise comparison among attributes of both `DecisionNode`
         objects and returns true if attributes are equal and returns false
         otherwise. The function will raise a TypeError if an object is not
-        a `Node` instance.
+        a `DecisionNode` instance.
 
         Parameters
         ----------
-        other : Node
+        other : DecisionNode
             The comparision object.
 
         Returns
         -------
         bool
-            Returns true if both `Node` objects contain identical values
+            Returns true if both `DecisionNode` objects contain identical values
             for all attributes.
 
         Raises
         ------
         TypeError
-            If `other` is not type `Node`.
+            If `other` is not type `DecisionNode`.
 
         See Also
         --------
@@ -139,34 +142,34 @@ class DecisionNode:
             Check if two decision tree objects are identical.
         """
         if not isinstance(other, self.__class__):
-            raise TypeError(f"Expected `Node` type but got: {type(other)}")
+            raise TypeError("Expected `DecisionNode` type but got: %s", type(other))
         return self.__dict__ == other.__dict__
 
     def add(self, other: DecisionNode):
         """Add another node to a existing node children.
 
-        The operation will append another `Node` with its key, specified
-        by its `branch` value, to an existing `Node` children dictionary.
+        The operation will append another `DecisionNode` with its key, specified
+        by its `branch` value, to an existing `DecisionNode` children dictionary.
 
         Parameters
         ----------
-        other : Node
+        other : DecisionNode
             The comparision object.
 
         Returns
         -------
         self
-            The current instance of the `Node` class.
+            The current instance of the `DecisionNode` class.
 
         Raises
         ------
         TypeError
-            If `other` is not type `Node`.
+            If `other` is not type `DecisionNode`.
         Attribute Error
             If `other` branch attribute is not instantiated.
         """
         if not isinstance(other, self.__class__):
-            raise TypeError(f"Expected `Node` type but got: {type(other)}")
+            raise TypeError("Expected `DecisionNode` type but got: %s", type(other))
         if other.branch is None:
             raise AttributeError("Object's `branch` attribute is not instantiated")
 
@@ -178,8 +181,8 @@ class DecisionNode:
     def is_leaf(self):
         """Return whether a node is terminal.
 
-        A `Node` object is a leaf if it contains no children, and will
-        return true; otherwise, the `Node` is considered an interior or
+        A `DecisionNode` object is a leaf if it contains no children, and will
+        return true; otherwise, the `DecisionNode` is considered an interior or
         root and will return false.
 
         Returns
@@ -191,14 +194,6 @@ class DecisionNode:
         ------
         TypeError
             If `children` attribute is not type `dict`
-
-        Examples
-        --------
-        >>> from mpitree.base_estimator import Node
-        >>> Node().is_leaf
-        True
-        >>> Node(children={"a": ...}).is_leaf
-        False
         """
         if not isinstance(self.children, dict):
             raise TypeError(f"Expected `dict` type but got: {type(self.children)}")
@@ -214,8 +209,8 @@ class DecisionNode:
 
         Returns
         -------
-        Node or None
-            Returns a `Node` if its key exists in its parent first
+        DecisionNode or None
+            Returns a `DecisionNode` if its key exists in its parent first
             child; otherwise, returns None.
 
         Raises
@@ -237,8 +232,8 @@ class DecisionNode:
 
         Returns
         -------
-        Node or None
-            Returns a `Node` if its key exists in its parent second
+        DecisionNode or None
+            Returns a `DecisionNode` if its key exists in its parent second
             child; otherwise, returns None.
 
         Raises
