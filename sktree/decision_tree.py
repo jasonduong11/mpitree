@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import OrderedDict, deque
 from copy import deepcopy
 from statistics import mode
 
@@ -13,29 +12,29 @@ from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 from ._node import DecisionNode
 
 
-class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, *, criterion=None):
-        super().__init__()
-        self.criterion_ = criterion
+class BaseDecisionTree:
+    def __iter__(self):
+        """Perform a depth-first search on the decision tree estimator.
 
-    def __iter__(self, other: DecisionNode = None):
-        """
+        The traversal starts at the root node and recursively traverses
+        across all its children in a sorted order. Each level in the decision
+        tree estimator is sorted by non-leaf, then leaf nodes.
 
+        Parameters
+        ----------
 
-        Parameter
-        --------
-
-        Returns
-        -------
+        Yields
+        ------
+        DecisionNode
         """
         check_is_fitted(self)
 
-        if other is None:
-            other = self.tree_
+        def DepthFirstSearch(node):
+            yield node
+            for _, child_node in sorted(node.children.items(), key=lambda u: u[1].is_leaf):
+                yield from DepthFirstSearch(child_node)
 
-        yield other
-        for _, child_node in sorted(other.children.items(), key=lambda u: u[1].is_leaf):
-            yield from self.__iter__(child_node)
+        yield from DepthFirstSearch(self.tree_)
 
     def __repr__(self):
         """
@@ -49,6 +48,12 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         """
         check_is_fitted(self)
         return "\n".join(map(str, self))
+
+
+class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
+    def __init__(self, *, criterion=None):
+        super().__init__()
+        self.criterion_ = criterion
 
     def fit(self, X, y):
         """
@@ -165,8 +170,8 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         Returns
         -------
         """
-        gain = self._entropy(X, y) - self._cond_entropy(X, y, d)
-        return gain
+        information_gain = self._entropy(X, y) - self._cond_entropy(X, y, d)
+        return information_gain
 
     def _partition_data(self, X, y, d, level):
         """
@@ -178,8 +183,8 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         Returns
         -------
         """
-        idx = X[:, d] == level
-        return np.delete(X[idx], d, axis=1), y[idx], level
+        mask = X[:, d] == level
+        return np.delete(X[mask], d, axis=1), y[mask], level
 
     def _make_tree(self, X, y, /, *, parent_y=None, branch=None, depth=0):
         """
