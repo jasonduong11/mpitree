@@ -67,7 +67,8 @@ class DecisionNode:
     state: np.ndarray
 
     def __post_init__(self):
-        self.n_samples = sum(self.shape)
+        _, self.shape = np.unique(self.y, return_counts=True)
+        self.n_samples = np.sum(self.shape)
 
         if self.parent is not None:
             self.depth = self.parent.depth + 1

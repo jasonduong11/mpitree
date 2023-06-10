@@ -326,7 +326,7 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
                 feature=value,
                 branch=branch,
                 parent=parent,
-                shape=np.unique(y, return_counts=True)[1],
+                # shape=np.unique(y, return_counts=True)[1],
                 state=np.column_stack((X, y)),
             )
             return deepcopy(node) if deep else node
