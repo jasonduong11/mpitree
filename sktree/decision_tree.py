@@ -384,19 +384,14 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         if self.min_samples_split >= len(X):
             return make_node(mode(y))
 
-        # `max_gain_feature` represents the feature index that provides the optimal split
-        max_gain_feature = np.argmax(
-            [
-                self._compute_information_gain(X, y, feature)
-                for feature in range(len(X.T))
-            ]
-        )
+        info_gains = [self._compute_information_gain(X, y, feature) for feature in range(len(X.T))]
+        split_feature_idx = np.argmax(info_gains)
 
         # NOTE: `min_gain` hyperparameter is default to -1 bc the domain is [0, inf]
-        if self.min_gain >= max_gain_feature:
+        if self.min_gain >= info_gains[split_feature_idx]:
             return make_node(mode(y))
 
-        split_feature = self.feature_names_[max_gain_feature]
+        split_feature = self.feature_names_[split_feature_idx]
         split_node = make_node(split_feature, deep=True)
 
         # if is_numeric_dtype(X[:, max_gain_feature]):
@@ -408,8 +403,8 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             print(X)
 
         levels = [
-            self._partition_data(X, y, max_gain_feature, level, split_node.threshold)
-            for level in self.unique_levels_[max_gain_feature]
+            self._partition_data(X, y, split_feature_idx, level, split_node.threshold)
+            for level in self.unique_levels_[split_feature_idx]
         ]
 
         for *partition_data, level in levels:

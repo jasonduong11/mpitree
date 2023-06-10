@@ -65,8 +65,8 @@ class DecisionNode:
     parent: Optional[DecisionNode] = None
     depth: int = field(default_factory=int)
     children: OrderedDict = field(default_factory=dict)
-    value: list = field(default_factory=list)
-    state: np.ndarray
+    value: np.ndarray = field(default_factory=list)
+    state: np.ndarray = field(default_factory=list)
 
     def __post_init__(self):
         _, self.value = np.unique(self.y, return_counts=True)
