@@ -62,6 +62,9 @@ class DecisionNode:
     def __post_init__(self):
         self.n_samples = sum(self.shape)
 
+    def __lt__(self, other: DecisionNode):
+        return self.is_leaf
+
     def __str__(self):
         """Output a string-formatted node.
 
@@ -112,39 +115,6 @@ class DecisionNode:
 
         return spacing + f"{feature} [{branch}]"
 
-    def __eq__(self, other: DecisionNode):
-        """Check if two node objects are equivalent.
-
-        Performs a pair-wise comparison among attributes of both `DecisionNode`
-        objects and returns true if attributes are equal and returns false
-        otherwise. The function will raise a TypeError if an object is not
-        a `DecisionNode` instance.
-
-        Parameters
-        ----------
-        other : DecisionNode
-            The comparision object.
-
-        Returns
-        -------
-        bool
-            Returns true if both `DecisionNode` objects contain identical values
-            for all attributes.
-
-        Raises
-        ------
-        TypeError
-            If `other` is not type `DecisionNode`.
-
-        See Also
-        --------
-        DecisionTreeEstimator.__eq__ :
-            Check if two decision tree objects are identical.
-        """
-        if not isinstance(other, self.__class__):
-            raise TypeError("Expected `DecisionNode` type but got: %s", type(other))
-        return self.__dict__ == other.__dict__
-
     def add(self, other: DecisionNode):
         """Add another node to a existing node children.
 
@@ -175,6 +145,13 @@ class DecisionNode:
 
         other.parent = self
         self.children[other.branch] = other
+
+        d = OrderedDict.fromkeys(self.children)
+        if other.is_leaf:
+            d.move_to_end(other.branch)
+        else:
+            d.move_to_end(other.branch, last=False)
+
         return self
 
     @property
