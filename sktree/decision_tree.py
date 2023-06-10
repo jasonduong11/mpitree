@@ -168,6 +168,8 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
 
         X, y = check_X_y(X, y, dtype=object)
 
+        DecisionNode._dtype = "classifier"
+
         if self.criterion_ is None:
             self.criterion_ = {}
         # NOTE: the key values are numeric indexes of the dataset

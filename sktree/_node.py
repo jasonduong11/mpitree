@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import Optional, Union, ClassVar
 
 import numpy as np
 
@@ -56,6 +56,8 @@ class DecisionNode:
         for *categorical* features and is assigned ``[< | >=] threshold`` for
         *numerical* features.
     """
+
+    _dtype = ClassVar[str]
 
     feature: Union[str, float] = None
     threshold: Optional[float] = None
@@ -113,21 +115,13 @@ class DecisionNode:
             op, _ = self.branch.split(" ")
             branch = f"{op} {self.parent.threshold:.2f}"
 
-        def isfloat(value):
-            try:
-                float(value)
-            except ValueError:
-                return False
-            return True
-
         if not self.depth:
             return spacing + str(feature)
 
-        if self.is_leaf and not isfloat(feature):
+        if self.is_leaf and self._dtype == "classifier":
             return spacing + f"class: {feature} [{branch}]"
-
-        # if self.is_leaf and not isfloat(feature):
-        # value = f"{float(feature):.2}"
+        elif self.is_leaf and self._dtype == "regressor":
+            return spacing + f"class: {feature} [{branch}]"
 
         return spacing + f"{feature} [{branch}]"
 
