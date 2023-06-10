@@ -310,7 +310,7 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         mask = X[:, feature] == level
         return np.delete(X[mask], feature, axis=1), y[mask], level
 
-    def _make_tree(self, X, y, /, *, parent_y=None, branch=None, depth=0):
+    def _make_tree(self, X, y, /, *, parent=None, branch=None, depth=0):
         """
 
 
@@ -325,15 +325,16 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
             node = DecisionNode(
                 feature=value,
                 branch=branch,
-                depth=depth,
+                parent=parent,
                 shape=np.unique(y, return_counts=True)[1],
+                state=np.column_stack((X, y)),
             )
             return deepcopy(node) if deep else node
 
         if len(np.unique(y)) == 1:
             return make_node(mode(y))
         if not X.size:
-            return make_node(mode(parent_y))
+            return make_node(mode(parent.y))
         if np.all(X == X[0]):
             return make_node(mode(y))
         if self.criterion_.get("max_depth", np.inf) <= depth:
@@ -366,7 +367,7 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         for *partition_data, level in levels:
             split_node.add(
                 self._make_tree(
-                    *partition_data, parent_y=y, branch=level, depth=depth + 1
+                    *partition_data, parent=split_node, branch=level, depth=depth + 1
                 )
             )
 

@@ -6,6 +6,8 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
+import numpy as np
+
 
 @dataclass(kw_only=True)
 class DecisionNode:
@@ -31,12 +33,16 @@ class DecisionNode:
     depth : int, default=0
         The number of levels from the root to a node.
 
+        *** add information on post init rules ***
+
     children : OrderedDict, default={}
         The nodes on each split of the parent node.
 
         *** add information on ordering of branches ***
 
     shape : list, default=[]
+
+    state : np.ndarray
 
     n_samples : int, default=0
 
@@ -58,11 +64,20 @@ class DecisionNode:
     depth: int = field(default_factory=int)
     children: OrderedDict = field(default_factory=dict)
     shape: list = field(default_factory=list)
+    state: np.ndarray
 
     def __post_init__(self):
         self.n_samples = sum(self.shape)
 
+        if self.parent is not None:
+            self.depth = self.parent.depth + 1
+
     def __lt__(self, other: DecisionNode):
+        """
+        Notes
+        -----
+        `other` is not used
+        """
         return self.is_leaf
 
     def __str__(self):
@@ -115,6 +130,10 @@ class DecisionNode:
 
         return spacing + f"{feature} [{branch}]"
 
+    @property
+    def y(self):
+        return self.state[:, -1]
+
     def add(self, other: DecisionNode):
         """Add another node to a existing node children.
 
@@ -143,14 +162,8 @@ class DecisionNode:
         if other.branch is None:
             raise AttributeError("Object's `branch` attribute is not instantiated")
 
-        other.parent = self
+        # other.parent = self
         self.children[other.branch] = other
-
-        d = OrderedDict.fromkeys(self.children)
-        if other.is_leaf:
-            d.move_to_end(other.branch)
-        else:
-            d.move_to_end(other.branch, last=False)
 
         return self
 
