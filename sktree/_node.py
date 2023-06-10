@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Optional, Union, ClassVar
+from typing import ClassVar, Optional, Union
 
 import numpy as np
 
@@ -40,7 +40,7 @@ class DecisionNode:
 
         *** add information on ordering of branches ***
 
-    shape : list, default=[]
+    value : list, default=[]
 
     state : np.ndarray
 
@@ -57,7 +57,7 @@ class DecisionNode:
         *numerical* features.
     """
 
-    _dtype = ClassVar[str]
+    _estimator_type = ClassVar[str]
 
     feature: Union[str, float] = None
     threshold: Optional[float] = None
@@ -65,20 +65,18 @@ class DecisionNode:
     parent: Optional[DecisionNode] = None
     depth: int = field(default_factory=int)
     children: OrderedDict = field(default_factory=dict)
-    shape: list = field(default_factory=list)
+    value: list = field(default_factory=list)
     state: np.ndarray
 
     def __post_init__(self):
-        _, self.shape = np.unique(self.y, return_counts=True)
-        self.n_samples = np.sum(self.shape)
+        _, self.value = np.unique(self.y, return_counts=True)
+        self.n_samples = np.sum(self.value)
 
         if self.parent is not None:
             self.depth = self.parent.depth + 1
 
     def __lt__(self, other: DecisionNode):
         """
-        Notes
-        -----
         `other` is not used
         """
         return self.is_leaf
@@ -99,8 +97,6 @@ class DecisionNode:
         ValueError
             If the `depth` is a negative integer.
         """
-        if self.depth < 0:
-            raise ValueError("DecisionNode `depth` attribute must be positive.")
 
         spacing = self.depth * "│  " + (
             "└── " if self.is_leaf else "├── " if self.depth else "┌── "
@@ -109,19 +105,19 @@ class DecisionNode:
         feature = self.feature
         branch = self.branch
 
-        if self.parent and self.parent.threshold:
-            # FIXME: better solution to extract operator
-            # possibly make a indirect branch property
-            op, _ = self.branch.split(" ")
-            branch = f"{op} {self.parent.threshold:.2f}"
-
         if not self.depth:
             return spacing + str(feature)
 
-        if self.is_leaf and self._dtype == "classifier":
+        if self.parent and self.parent.threshold:
+            if self.branch:  # True
+                branch = f"< {self.parent.threshold:.2f}"
+            else:
+                branch = f">= {self.parent.threshold:.2f}"
+
+        if self.is_leaf and self._estimator_type == "classifier":
             return spacing + f"class: {feature} [{branch}]"
-        elif self.is_leaf and self._dtype == "regressor":
-            return spacing + f"class: {feature} [{branch}]"
+        elif self.is_leaf and self._estimator_type == "regressor":
+            return spacing + f"target: {feature} [{branch}]"
 
         return spacing + f"{feature} [{branch}]"
 
@@ -186,7 +182,7 @@ class DecisionNode:
 
     @property
     def left(self):
-        """Return the left child of a numeric-featured node.
+        """Return the left child of a numeric-featured decision node.
 
         The `left` property accesses the first item (i.e., child)
         corresponding to the partition whose values for some feature
@@ -205,11 +201,11 @@ class DecisionNode:
         """
         if not isinstance(self.children, dict):
             raise TypeError(f"Expected `dict` type but got: {type(self.children)}")
-        return self.children.get(f"< {self.threshold}")
+        return self.children.get("True")
 
     @property
     def right(self):
-        """Return the right child of a numeric-featured node.
+        """Return the right child of a numeric-featured decision node.
 
         The `right` property accesses the second item (i.e., child)
         corresponding to the partition whose values for some feature
@@ -228,4 +224,4 @@ class DecisionNode:
         """
         if not isinstance(self.children, dict):
             raise TypeError(f"Expected `dict` type but got: {type(self.children)}")
-        return self.children.get(f">= {self.threshold}")
+        return self.children.get("False")
