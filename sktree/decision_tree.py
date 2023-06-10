@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+DEBUG = True
+
 from copy import deepcopy
 from operator import ge, lt
 from statistics import mode
@@ -208,14 +210,18 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         -------
         """
 
-        proba = np.proba(y)
-        print(
-            f"H({set(np.unique(y))})",
-            f"- ({proba} * log2({proba}))",
-            f"{-np.sum(proba * np.log2(proba))}",
-            sep="\n\t = ",
-        )
-        return -np.sum(proba * np.log2(proba))
+        if DEBUG:
+            proba = np.proba(y)
+            print(
+                f"\t = H({set(np.unique(y))})",
+                f"- {proba.round(3)} * log({proba.round(3)})",
+                f"[{np.sum(proba * np.log2(proba)).round(3)}]",
+                sep="\n\t = ",
+            )
+            return -np.sum(proba * np.log2(proba))
+        else:
+            proba = np.proba(y)
+            return -np.sum(proba * np.log2(proba))
 
     # def _compute_optimal_threshold(self, X, y, feature):
     #     arr = np.column_stack((X, y))
@@ -263,33 +269,40 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         Returns
         -------
         """
-        print(
-            f"IG({self.feature_names_[feature]}) = H({set(np.unique(y))}) - rem({self.feature_names_[feature]})"
-        )
-
         if is_numeric_dtype(X[feature, :]):
             max_gain, self.n_thresholds_[feature] = self._compute_optimal_threshold(
                 X, y, feature
             )
         else:
-            a = self._entropy(y)
-            print(
-                f"rem({self.feature_names_[feature]}, {np.unique(X[:, feature])})",
-                end="",
-            )
-            weight = np.proba(X[:, feature])
-            impurity = []
-            for level in np.unique(X[:, feature]):
-                print("\n\t = ", end="")
-                impurity.append(self._entropy(y[X[:, feature] == level]))
-            # impurity = [
-            #     self._entropy(y[X[:, feature] == level])
-            #     for level in np.unique(X[:, feature])
-            # ]
-            print(f"\t = {weight} * {impurity} = {np.dot(weight, impurity)}")
-            print("=", self._entropy(y) - np.dot(weight, impurity))
-            print("-" * 50)
-            max_gain = a - np.dot(weight, impurity)
+            if DEBUG:
+                print(
+                    f"\nIG({self.feature_names_[feature]}) = H({set(np.unique(y))}) - rem({self.feature_names_[feature]})"
+                )
+                total_entropy = self._entropy(y)
+
+                print(f"\t = rem({self.feature_names_[feature]})")
+
+                weight = np.proba(X[:, feature])
+                impurity = []
+                for level in np.unique(X[:, feature]):
+                    a = self._entropy(y[X[:, feature] == level])
+                    impurity.append(a)
+
+                print(
+                    f"\t = {weight.round(3)} x {np.array(impurity).round(3)}",
+                    f"[{np.dot(weight, impurity).round(3)}]",
+                    sep="\n\t = ",
+                )
+
+                max_gain = total_entropy - np.dot(weight, impurity)
+                print(f"\t = [{max_gain.round(3)}]")
+            else:
+                weight = np.proba(X[:, feature])
+                impurity = [
+                    self._entropy(y[X[:, feature] == level])
+                    for level in np.unique(X[:, feature])
+                ]
+                max_gain = self._entropy(y) - np.dot(weight, impurity)
         return max_gain
 
     def _partition_data(self, X, y, feature, level, threshold):
@@ -307,8 +320,16 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         #         *list(map(lambda f: f[level(X[:, feature], threshold)], [X, y])),
         #         f"{'<' if level is lt else '>='} {threshold}",
         #     )
-        mask = X[:, feature] == level
-        return np.delete(X[mask], feature, axis=1), y[mask], level
+
+        if DEBUG:
+            mask = X[:, feature] == level
+            a = np.delete(X[mask], feature, axis=1)
+            print(50 * '-')
+            print(np.column_stack((a, y[mask])))
+            return a, y[mask], level
+        else:
+            mask = X[:, feature] == level
+            return np.delete(X[mask], feature, axis=1), y[mask], level
 
     def _make_tree(self, X, y, /, *, parent=None, branch=None, depth=0):
         """
@@ -326,7 +347,6 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
                 feature=value,
                 branch=branch,
                 parent=parent,
-                # shape=np.unique(y, return_counts=True)[1],
                 state=np.column_stack((X, y)),
             )
             return deepcopy(node) if deep else node
@@ -342,7 +362,7 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         if self.criterion_.get("min_samples_split", -np.inf) >= len(X):
             return make_node(mode(y))
 
-        # `max_info_gain` represents the feature index that provides the optimal split
+        # `max_gain_feature` represents the feature index that provides the optimal split
         max_gain_feature = np.argmax(
             [
                 self._compute_information_gain(X, y, feature)
@@ -358,6 +378,9 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
 
         # if is_numeric_dtype(X[:, max_gain_feature]):
         #     split_node.threshold = self.n_thresholds_[max_gain_feature]
+
+        if DEBUG:
+            print(f"\nSplit on Feature: {split_feature}")
 
         levels = [
             self._partition_data(X, y, max_gain_feature, level, split_node.threshold)
