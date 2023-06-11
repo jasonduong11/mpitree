@@ -27,24 +27,24 @@ class DecisionNode:
     branch : str, default=None
         The feature value of a split from the parent node.
 
-    parent : DecisionNode, optional
-        The precedent node.
-
     depth : int, default=0
         The number of levels from the root to a node.
 
         *** add information on post init rules ***
+
+    parent : DecisionNode, optional
+        The precedent node.
 
     children : OrderedDict, default={}
         The nodes on each split of the parent node.
 
         *** add information on ordering of branches ***
 
-    value : list, default=[]
-
     state : np.ndarray
 
-    n_samples : int, default=0
+    value : np.ndarray, init=False
+
+    n_samples : int, init=False
 
     Notes
     -----
@@ -62,24 +62,19 @@ class DecisionNode:
     feature: Union[str, float] = None
     threshold: Optional[float] = None
     branch: str = None
-    parent: Optional[DecisionNode] = None
     depth: int = field(default_factory=int)
-    children: OrderedDict = field(default_factory=dict)
-    value: np.ndarray = field(default_factory=list)
-    state: np.ndarray = field(default_factory=list)
+    parent: Optional[DecisionNode] = field(default=None, repr=False)
+    children: OrderedDict = field(default_factory=dict, repr=False)
+    state: np.ndarray = field(default_factory=list, repr=False)
+    value: np.ndarray = field(init=False)
+    n_samples: int = field(init=False)
 
     def __post_init__(self):
         _, self.value = np.unique(self.y, return_counts=True)
-        self.n_samples = np.sum(self.value)
+        self.n_samples = len(self.y)
 
         if self.parent is not None:
             self.depth = self.parent.depth + 1
-
-    def __lt__(self, other: DecisionNode):
-        """
-        `other` is not used
-        """
-        return self.is_leaf
 
     def __str__(self):
         """Output a string-formatted node.
@@ -130,6 +125,12 @@ class DecisionNode:
             return spacing + f"target: {feature} [{branch}]"
 
         return spacing + f"{feature} [{branch}]"
+
+    def __lt__(self, other: DecisionNode):
+        """
+        `other` is not used
+        """
+        return self.is_leaf
 
     @property
     def y(self):

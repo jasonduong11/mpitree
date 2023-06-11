@@ -437,6 +437,8 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         Parameter
         --------
+        X : np.ndarray, ndim=2
+        y : np.ndarray, ndim=1
 
         Returns
         -------
@@ -488,6 +490,8 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
 
         Parameter
         --------
+        X : np.ndarray, ndim=2
+        y : np.ndarray, ndim=1
 
         Returns
         -------
