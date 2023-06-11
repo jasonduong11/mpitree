@@ -98,6 +98,11 @@ class DecisionNode:
             If the `depth` is a negative integer.
         """
 
+        """
+        └── class: ...
+        └── target: ...
+        """
+
         spacing = self.depth * "│  " + (
             "└── " if self.is_leaf else "├── " if self.depth else "┌── "
         )
@@ -106,10 +111,15 @@ class DecisionNode:
         branch = self.branch
 
         if not self.depth:
-            return spacing + str(feature)
+            if self.is_leaf and self._estimator_type == "classifier":
+                return spacing + f"class: {feature}"
+            elif self.is_leaf and self._estimator_type == "regressor":
+                return spacing + f"target: {feature}"
+            else:
+                return spacing + str(feature)
 
         if self.parent and self.parent.threshold:
-            if self.branch:  # True
+            if self.branch:  # True branch
                 branch = f"< {self.parent.threshold:.2f}"
             else:
                 branch = f">= {self.parent.threshold:.2f}"
