@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-DEBUG = 1
+DEBUG = 0
 
 from abc import ABCMeta, abstractmethod
 from copy import deepcopy
@@ -42,7 +42,7 @@ def proba(X):
 
 
 def split_mask(X, mask):
-    return [[X[mask], X[~mask]]]
+    return [X[mask], X[~mask]]
 
 
 def Get_cyclic_dist(comm: MPI.Intracomm = None, *, n_block: int = 1) -> MPI.Intracomm:
@@ -210,15 +210,21 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         X, y = check_X_y(X, y, dtype=object)
 
         # NOTE: the key values are numeric indexes of the dataset
-        self.unique_levels_ = {
-            feature_idx: np.unique(X[:, feature_idx]) for feature_idx in range(len(X.T))
-        }
-
         # self.unique_levels_ = {
-        #     feature_idx: (("True", "False") if is_numeric_dtype(X[:, feature_idx]) else np.unique(X[:, feature_idx]))
-        #     for feature_idx in range(len(X.T))
+        #     feature_idx: np.unique(X[:, feature_idx]) for feature_idx in range(len(X.T))
         # }
-        # self.n_thresholds_ = {}
+
+        self.optimal_threshold_ = None
+
+        # NOTE: the key values are numeric indexes of the dataset
+        self.unique_levels_ = {
+            feature_idx: (
+                ("True", "False")
+                if is_numeric_dtype(X[:, feature_idx])
+                else np.unique(X[:, feature_idx])
+            )
+            for feature_idx in range(len(X.T))
+        }
 
         self.tree_ = self._make_tree(X, y)
         return self
@@ -247,41 +253,33 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             proba = np.proba(y)
             return -np.sum(proba * np.log2(proba))
 
-    # def _compute_optimal_threshold(self, X, y, feature_idx):
-    #     arr = np.column_stack((X, y))
-    #     arr = arr[np.argsort(arr[:, feature]]
+    def _compute_optimal_threshold(self, X, y, feature_idx):
+        """
 
-    #     thresholds = []
-    #     for i, j in [(i, i+1) for i, (p, q) in enumerate(zip(y, y[1:])) if p != q]:
-    #         thresholds.append(
-    #             np.mean(X[i:j+1, feature].astype(np.float64))
-    #         )
 
-    #     print(f"Possible Thresholds: {thresholds}")
+        Parameter
+        --------
 
-    #     A = []
-    #     for threshold in thresholds:
-    #         levels = np.split_mask(X, X[:, feature] < threshold)
-    #         # print(f"Levels: {levels}")
+        Returns
+        -------
+        """
 
-    #         weights = [len(l) / len(arr) for l in levels]
-    #         print(f"Weights: {weights}")
+        def cost(x):
+            threshold = x[-1]
+            mask = X[:, feature_idx] < threshold
+            levels = np.split_mask(X, mask)
+            weights = [len(l) / len(X) for l in levels]
+            impurity = [self._entropy(y[mask]), self._entropy(y[~mask])]
+            return np.dot(weights, impurity)
 
-    #         total_entropy = self._entropy(arr[-1])
-    #         print(f"Total Entropy: {total_entropy}")
+        costs = np.apply_along_axis(cost, axis=1, arr=X)
+        idx = np.argmin(costs)
+        t_hat = X[idx, -1]
 
-    #         cond_entropy = [self._entropy(level[-1]) for level in levels]
-    #         print(f"Cond Entropy: {cond_entropy}")
+        min_cost = min(costs)
+        max_gain = self._entropy(y) - min_cost
 
-    #         rem = np.dot(weights, cond_entropy)
-    #         A.append(total_entropy - rem)
-
-    #     print(f"A: {A}")
-
-    #     t_hat = thresholds[np.argmax(A)]
-    #     print(f"Optimal Threshold: {t_hat}")
-
-    #     return max(A), t_hat
+        return max_gain, t_hat
 
     def _compute_information_gain(self, X, y, feature_idx):
         """
@@ -293,8 +291,8 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         Returns
         -------
         """
-        if is_numeric_dtype(X[feature_idx, :]):
-            max_gain, self.n_thresholds_[feature_idx] = self._compute_optimal_threshold(
+        if is_numeric_dtype(X[:, feature_idx]):
+            max_gain, self.optimal_threshold_ = self._compute_optimal_threshold(
                 X, y, feature_idx
             )
         else:
@@ -339,18 +337,14 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         Returns
         -------
         """
-        # if threshold is not None:
-        #     return (
-        #         *list(
-        #             map(
-        #                 lambda f: f[(X[:, split_feature_idx] < threshold)]
-        #                 if level
-        #                 else f[(X[:, split_feature_idx] >= threshold)],
-        #                 [X, y],
-        #             )
-        #         ),
-        #         level,
-        #     )
+        if threshold is not None:
+            mask = X[:, split_feature_idx] < threshold
+            a = [
+                (tree[:, :-1], y[mask], l)
+                for tree, l in zip(np.split_mask(X, mask), ["True", "False"])
+            ]
+            print(a)
+            return a[0]
 
         if DEBUG:
             mask = X[:, split_feature_idx] == level
@@ -390,6 +384,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             return make_node(mode(parent.y))
         if np.all(X == X[0]):
             return make_node(mode(y))
+
         # NOTE: also check if max_depth is 0
         # NOTE: parent param is None during start
         # NOTE: parent depth + 1 is the current depth
@@ -411,8 +406,8 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         split_feature = self.feature_names_[split_feature_idx]
         split_node = make_node(split_feature, deep=True)
 
-        # if is_numeric_dtype(X[:, split_feature_idx]):
-        #     split_node.threshold = self.n_thresholds_[split_feature_idx]
+        if is_numeric_dtype(X[:, split_feature_idx]):
+            split_node.threshold = self.optimal_threshold_
 
         if DEBUG:
             print(f"\nSplit on Feature: {split_feature}")

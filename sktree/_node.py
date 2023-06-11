@@ -128,12 +128,27 @@ class DecisionNode:
 
     def __lt__(self, other: DecisionNode):
         """
-        `other` is not used
+
+
+        Parameter
+        --------
+
+        Returns
+        -------
         """
         return self.is_leaf
 
     @property
     def y(self):
+        """
+
+
+        Parameter
+        --------
+
+        Returns
+        -------
+        """
         return self.state[:, -1]
 
     def add(self, other: DecisionNode):
