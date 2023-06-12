@@ -14,15 +14,16 @@ class DecisionNode:
     """A decision tree node.
 
     The decision tree node defines the attributes and properties of a
-    ``DecisionTreeEstimator``.
+    `BaseDecisionTree`.
 
     Parameters
     ----------
     feature : str or float, default=None
         The descriptive or target feature value.
 
-    threshold : float, optional
-        default is `None`, implying the split feature is *categorical*).
+    threshold : float, default=None
+        the default is `None`, which implies the split feature is
+        *categorical*).
 
     branch : str, default=None
         The feature value of a split from the parent node.
@@ -52,8 +53,8 @@ class DecisionNode:
         The `threshold` attribute is initialized upon the split of a
         numerical feature.
 
-        The `branch` attribute is assigned a value from the set of unique feature values
-        for *categorical* features and is assigned ``[< | >=] threshold`` for
+        The `branch` attribute is assigned a value from the set of unique
+        feature values for *categorical* features and `[True | False]` for
         *numerical* features.
     """
 
@@ -71,13 +72,15 @@ class DecisionNode:
 
     def __post_init__(self):
         _, self.value = np.unique(self.y, return_counts=True)
+        # NOTE: we choose `len(self.y)` instead of `np.sum(self.value)` bc its faster
         self.n_samples = len(self.y)
 
+        # the root node `depth` is initialized to 0
         if self.parent is not None:
             self.depth = self.parent.depth + 1
 
     def __str__(self):
-        """Output a string-formatted node.
+        """Output a string-formatted decision node.
 
         The output string of a node is primarily dependent on the `depth`
         for horizontal spacing and `branch`, either an interior or leaf.
@@ -85,17 +88,12 @@ class DecisionNode:
         Returns
         -------
         str
-            The string-formatted node.
+            The string-formatted decision node.
 
         Raises
         ------
         ValueError
             If the `depth` is a negative integer.
-        """
-
-        """
-        └── class: ...
-        └── target: ...
         """
 
         spacing = self.depth * "│  " + (
@@ -108,46 +106,47 @@ class DecisionNode:
         if not self.depth:
             if self.is_leaf and self._estimator_type == "classifier":
                 return spacing + f"class: {feature}"
-            elif self.is_leaf and self._estimator_type == "regressor":
+            if self.is_leaf and self._estimator_type == "regressor":
                 return spacing + f"target: {feature}"
-            else:
-                return spacing + str(feature)
+            return spacing + str(feature)
 
         if self.parent and self.parent.threshold:
-            if self.branch:  # True branch
+            if self.branch == "True":
                 branch = f"< {self.parent.threshold:.2f}"
             else:
                 branch = f">= {self.parent.threshold:.2f}"
 
         if self.is_leaf and self._estimator_type == "classifier":
             return spacing + f"class: {feature} [{branch}]"
-        elif self.is_leaf and self._estimator_type == "regressor":
+        if self.is_leaf and self._estimator_type == "regressor":
             return spacing + f"target: {feature} [{branch}]"
 
         return spacing + f"{feature} [{branch}]"
 
-    def __lt__(self, other: DecisionNode):
-        """
+    def __lt__(self, other: DecisionNode = None):
+        """Short Summary
 
+        Extended Summary
 
-        Parameter
-        --------
+        Parameters
+        ----------
+        other : DecisionNode, default=None
 
         Returns
         -------
+        bool
         """
         return self.is_leaf
 
     @property
     def y(self):
-        """
+        """Short Summary
 
-
-        Parameter
-        --------
+        Extended Summary
 
         Returns
         -------
+        np.ndarray, ndim=1
         """
         return self.state[:, -1]
 
@@ -164,7 +163,7 @@ class DecisionNode:
 
         Returns
         -------
-        self
+        DecisionNode
             The current instance of the `DecisionNode` class.
 
         Raises
@@ -179,9 +178,7 @@ class DecisionNode:
         if other.branch is None:
             raise AttributeError("Object's `branch` attribute is not instantiated")
 
-        # other.parent = self
         self.children[other.branch] = other
-
         return self
 
     @property
