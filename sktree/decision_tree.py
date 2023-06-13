@@ -24,11 +24,24 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
         self.min_gain = min_gain
         DecisionNode._estimator_type = estimator_type
 
+    def __str__(self):
+        """Short Summary
+
+        Extended Summary
+
+        Returns
+        -------
+        str
+        """
+        check_is_fitted(self)
+        return "\n".join(map(str, self))
+
     def __iter__(self):
         """Perform a depth-first search on a decision tree estimator.
 
-        The iterative traversal starts at the root decision node and
-        explores as far as possible from its sorted children.
+        The iterative traversal starts at the root decision node, explores
+        as far as possible from its sorted children, and backtracks after
+        reaching a leaf decision node.
 
         Yields
         ------
@@ -38,9 +51,11 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
         -----
         Since the decision tree estimator is a DAG (Directed Acyclic Graph)
         data structure, we do not maintain a list of visited nodes for
-        nodes already and yet to be explored. The ordering of children
-        decision nodes in the stack are as follows, non-leaf always
-        precedes leaf nodes.
+        nodes already explored or inspect the stack for nodes yet to be
+        explored.
+
+        The ordering of children decision nodes at each level in the stack
+        is as follows, non-leaf always precedes leaf nodes.
 
         See Also
         --------
@@ -54,18 +69,6 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
             yield node
             frontier.extend(sorted(node.children.values()))
 
-    def __str__(self):
-        """Short Summary
-
-        Extended Summary
-
-        Returns
-        -------
-        str
-        """
-        check_is_fitted(self)
-        return "\n".join(map(str, self))
-
     def _tree_walk(self, x):
         """Short Summary
 
@@ -73,21 +76,26 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
 
         Parameters
         ----------
-        x : np.ndarray, ndim=1
+        x : np.ndarray
+            1D instance array of shape (1, n_features) from a feature
+            matrix `X`.
 
         Returns
         -------
         DecisionNode
+
+        Notes
+        -----
+        The `np.apply_along_axis` function removes feature names, so we
+        cannot index using the current tree node feature name, instead, we
+        can retreive the index of the current tree node feature name to get
+        the query feature value
         """
         check_is_fitted(self)
 
         node = self.tree_
         while not node.is_leaf:
-            # np.apply_along_axis removes feature names, so we cannot
-            # index using the current tree node feature name, instead,
-            # we can retreive the index of the current tree node feature
-            # name to get the query feature value
-            feature_idx = self.feature_names.index(node.feature)
+            feature_idx = self.feature_names_.index(node.feature)
             query_branch = x[feature_idx]
             if isinstance(query_branch, float | int):
                 node = node.left if query_branch < node.threshold else node.right
@@ -102,7 +110,9 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
 
         Parameters
         ----------
-        x : np.ndarray, ndim=2
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
 
         Returns
         -------
@@ -113,35 +123,9 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
 
         return np.apply_along_axis(lambda x: self._tree_walk(x).feature, axis=1, arr=X)
 
-    def predict_proba(self, X):
-        """Short Summary
-
-        Extended Summary
-
-        Parameters
-        ----------
-        x : np.ndarray, ndim=2
-
-        Returns
-        -------
-        np.ndarray
-        """
-        check_is_fitted(self)
-        X = check_array(X, dtype=object)
-
-        proba = np.apply_along_axis(self._tree_walk, axis=1, arr=X)
-
-        output = []
-        for node in proba:
-            output.append(node.value / node.n_samples)
-        return output
-
-        # NOTE: not working because of inconsisent dimensions
-        # return np.vectorize(lambda node: node.value / node.n_samples)(proba)
-
 
 class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
-    def __init__(self, *, max_depth=np.inf, min_samples_split=2, min_gain=-1):
+    def __init__(self, *, max_depth=np.inf, min_samples_split=1, min_gain=-1):
         super().__init__(
             max_depth=max_depth,
             min_samples_split=min_samples_split,
@@ -156,24 +140,33 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         Parameters
         ----------
-        X : np.ndarray, ndim=2
-        y : np.ndarray, ndim=1
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        y : np.ndarray
+            1D target array with shape (n_samples,) of categorical values.
 
         Returns
         -------
         DecisionTreeClassifier
+
+        Notes
+        -----
+        The `feature_names` attribute is a `list` type so we can use the
+        `index` method.
         """
-        # NOTE: `feature_names` attribute is a `list` type bc from `index` method
         if isinstance(X, np.ndarray):
-            self.feature_names = [f"feature_{i}" for i in range(X.shape[1])]
+            self.feature_names_ = [f"feature_{i}" for i in range(X.shape[1])]
         elif isinstance(X, pd.DataFrame):
-            self.feature_names = X.columns.values.tolist()
+            self.feature_names_ = X.columns.values.tolist()
 
         X, y = check_X_y(X, y, dtype=object)
 
+        self.classes_ = np.unique(y)
         self.optimal_threshold_ = None
 
-        # NOTE: the key values are numeric indexes of the dataset
+        # NOTE: the key values are feature indices rather than feature names
         self.unique_levels_ = {
             feature_idx: (
                 ("True", "False")
@@ -193,7 +186,8 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         Parameters
         ----------
-        x : np.ndarray, ndim=1
+        x : np.ndarray
+            1D array of shape (n_samples,).
 
         Returns
         -------
@@ -219,8 +213,13 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         Parameters
         ----------
-        X : np.ndarray, ndim=2
-        y : np.ndarray, ndim=1
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        y : np.ndarray
+            1D target array with shape (n_samples,) of categorical values.
+
         feature_idx : int
 
         Returns
@@ -253,8 +252,13 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         Parameters
         ----------
-        X : np.ndarray, ndim=2
-        y : np.ndarray, ndim=1
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        y : np.ndarray
+            1D target array with shape (n_samples,) of categorical values.
+
         feature_idx : int
 
         Returns
@@ -268,12 +272,12 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         else:
             if DEBUG:
                 print(
-                    f"\nIG({self.feature_names[feature_idx]}) =",
-                    f"H({set(np.unique(y))}) - rem({self.feature_names[feature_idx]})",
+                    f"\nIG({self.feature_names_[feature_idx]}) =",
+                    f"H({set(np.unique(y))}) - rem({self.feature_names_[feature_idx]})",
                 )
                 total_entropy = self._entropy(y)
 
-                print(f"\t = rem({self.feature_names[feature_idx]})")
+                print(f"\t = rem({self.feature_names_[feature_idx]})")
 
                 weight = np.proba(X[:, feature_idx])
                 impurity = []
@@ -305,10 +309,17 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         Parameters
         ----------
-        X : np.ndarray, ndim=2
-        y : np.ndarray, ndim=1
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        y : np.ndarray
+            1D target array with shape (n_samples,) of categorical values.
+
         split_feature_idx : int
+
         level : str
+
         threshold : float or None
 
         Returns
@@ -333,17 +344,25 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             mask = X[:, split_feature_idx] == level
             return np.delete(X[mask], split_feature_idx, axis=1), y[mask], level
 
-    def _tree_builder(self, X, y, /, *, parent=None, branch=None):
+    def _tree_builder(self, X, y, /, *, parent=None, branch=None, depth=0):
         """Short Summary
 
         Extended Summary
 
         Parameters
         ----------
-        X : np.ndarray, ndim=2
-        y : np.ndarray, ndim=1
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        y : np.ndarray
+            1D target array with shape (n_samples,) of categorical values.
+
         parent : DecisionTreeClassifier, default=None
+
         branch : str, default=None
+
+        depth : int, default=0
 
         Returns
         -------
@@ -356,6 +375,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
                 branch=branch,
                 parent=parent,
                 state=np.column_stack((X, y)),
+                classes=self.classes_,
             )
             return deepcopy(node) if deep else node
 
@@ -365,13 +385,10 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             return make_node(mode(parent.y))
         if np.all(X == X[0]):
             return make_node(mode(y))
-
-        # NOTE: also check if max_depth is 0
-        # NOTE: parent param is None during start
-        # NOTE: parent depth + 1 is the current depth
-        # if not self.max_depth or parent and self.max_depth <= parent.depth + 1:
-        #     return make_node(mode(y))
-        if self.min_samples_split > len(X):
+        if self.max_depth == depth:
+            return make_node(mode(y))
+        # Minimum number of samples in an internal node
+        if self.min_samples_split >= len(X):
             return make_node(mode(y))
 
         info_gains = [
@@ -384,7 +401,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         # if self.min_gain >= info_gains[split_feature_idx]:
         #     return make_node(mode(y))
 
-        split_feature = self.feature_names[split_feature_idx]
+        split_feature = self.feature_names_[split_feature_idx]
         split_node = make_node(split_feature, deep=True)
 
         if is_numeric_dtype(X[:, split_feature_idx]):
@@ -400,15 +417,44 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             for level in self.unique_levels_[split_feature_idx]
         ]
 
+        # TODO: refactor me
         if is_numeric_dtype(X[:, split_feature_idx]):
             levels = levels[0]
 
         for *partition_data, level in levels:
             split_node.add(
-                self._tree_builder(*partition_data, parent=split_node, branch=level)
+                self._tree_builder(
+                    *partition_data, parent=split_node, branch=level, depth=depth + 1
+                )
             )
 
         return split_node
+
+    def predict_proba(self, X):
+        """Short Summary
+
+        Extended Summary
+
+        Parameters
+        ----------
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        show_percent : bool
+
+        Returns
+        -------
+        np.ndarray
+        """
+        check_is_fitted(self)
+        X = check_array(X, dtype=object)
+
+        def compute_class_distribution(x):
+            proba = self._tree_walk(x)
+            return proba.value / proba.n_samples
+
+        return np.apply_along_axis(compute_class_distribution, axis=1, arr=X)
 
     def score(self, X, y):
         """Short Summary
@@ -417,8 +463,12 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         Parameters
         ----------
-        X : np.ndarray, ndim=2
-        y : np.ndarray, ndim=1
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        y : np.ndarray
+            1D target array with shape (n_samples,) of categorical values.
 
         Returns
         -------
@@ -447,8 +497,12 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
 
         Parameters
         ----------
-        X : np.ndarray, ndim=2
-        y : np.ndarray, ndim=1
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        y : np.ndarray
+            1D target array with shape (n_samples,) of numerical values.
 
         Returns
         -------
@@ -457,17 +511,25 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
         X, y = check_X_y(X, y, y_numeric=True)
         return self
 
-    def _tree_builder(self, X, y, /, *, parent=None, branch=None):
+    def _tree_builder(self, X, y, /, *, parent=None, branch=None, depth=0):
         """Short Summary
 
         Extended Summary
 
         Parameters
         ----------
-        X : np.ndarray, ndim=2
-        y : np.ndarray, ndim=1
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        y : np.ndarray
+            1D target array with shape (n_samples,) of numerical values.
+
         parent : DecisionTreeRegressor, default=None
+
         branch : str, default=None
+
+        depth : int, default=0
 
         Returns
         -------
@@ -482,8 +544,12 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
 
         Parameters
         ----------
-        X : np.ndarray, ndim=2
-        y : np.ndarray, ndim=1
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        y : np.ndarray
+            1D target array with shape (n_samples,) of numerical values.
 
         Returns
         -------
@@ -521,18 +587,29 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         key, color = divmod(rank, n_block)
         return comm.Split(color, key)
 
-    def _tree_builder(self, X, y, /, comm=WORLD_COMM, *, parent=None, branch=None):
+    def _tree_builder(
+        self, X, y, /, comm=WORLD_COMM, *, parent=None, branch=None, depth=0
+    ):
         """Short Summary
 
         Extended Summary
 
         Parameters
         ----------
-        X : np.ndarray, ndim=2
-        y : np.ndarray, ndim=1
+        X : np.ndarray
+            2D feature matrix with shape (n_samples, n_features) of
+            categorical and/or numerical values.
+
+        y : np.ndarray
+            1D target array with shape (n_samples,) of numerical values.
+
         comm : MPI.Intracomm, default=WORLD_COMM
+
         parent : DecisionTreeRegressor, default=None
+
         branch : str, default=None
+
+        depth : int, default=0
 
         Returns
         -------

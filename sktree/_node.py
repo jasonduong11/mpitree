@@ -70,9 +70,13 @@ class DecisionNode:
     value: np.ndarray = field(init=False)
     n_samples: int = field(init=False)
 
+    # NOTE: contingent to future changes
+    classes: np.ndarray
+
     def __post_init__(self):
-        _, self.value = np.unique(self.y, return_counts=True)
-        # NOTE: we choose `len(self.y)` instead of `np.sum(self.value)` bc its faster
+        n_unique_class = dict(zip(*np.unique(self.y, return_counts=True)))
+        self.value = np.array([n_unique_class.get(c, 0) for c in self.classes])
+
         self.n_samples = len(self.y)
 
         # the root node `depth` is initialized to 0
@@ -135,6 +139,10 @@ class DecisionNode:
         Returns
         -------
         bool
+
+        Notes
+        -----
+        The `other` parameter is unsed.
         """
         return self.is_leaf
 
@@ -146,7 +154,7 @@ class DecisionNode:
 
         Returns
         -------
-        np.ndarray, ndim=1
+        np.ndarray
         """
         return self.state[:, -1]
 
@@ -159,18 +167,17 @@ class DecisionNode:
         Parameters
         ----------
         other : DecisionNode
-            The comparision object.
+            The child decision node.
 
         Returns
         -------
         DecisionNode
-            The current instance of the `DecisionNode` class.
 
         Raises
         ------
         TypeError
             If `other` is not type `DecisionNode`.
-        Attribute Error
+        AttributeError
             If `other` branch attribute is not instantiated.
         """
         if not isinstance(other, self.__class__):
@@ -185,14 +192,13 @@ class DecisionNode:
     def is_leaf(self):
         """Return whether a node is terminal.
 
-        A `DecisionNode` object is a leaf if it contains no children, and will
-        return true; otherwise, the `DecisionNode` is considered an interior or
-        root and will return false.
+        A `DecisionNode` object is a leaf if it contains no children, and
+        will return true; otherwise, the `DecisionNode` is considered an
+        internal and will return false.
 
         Returns
         -------
         bool
-            Returns true if the node is terminal.
 
         Raises
         ------
