@@ -79,6 +79,7 @@ class DecisionNode:
 
     # NOTE: contingent to future changes
     classes: np.ndarray = field(default_factory=list, repr=False)
+    feature_indices: np.ndarray = field(default_factory=list)
 
     def __post_init__(self):
         n_unique_class = dict(zip(*np.unique(self.y, return_counts=True)))
@@ -117,7 +118,7 @@ class DecisionNode:
 
         if self.parent and self.parent.threshold:
             # NOTE: numpy cannot have mix types so numerical value are
-            # converted to type str
+            # type casted to ``class <str>``
             if self.branch == "True":
                 branch = f"<= {float(self.parent.threshold):.2f}"
             else:

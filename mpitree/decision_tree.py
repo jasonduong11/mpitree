@@ -154,7 +154,8 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
             queue = deque([s])
             while queue:
                 node = queue.popleft()
-                children = sorted(node.children.values())
+                # NOTE: we don't care about order here
+                children = node.children.values()
                 yield node, children
                 queue.extend(children)
 
@@ -167,12 +168,15 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
                     f"depth={n.depth}",
                     f"value={n.value}={n.n_samples}",
                     f"proba={n.proba.round(2)}",
+                    f"feature_indices={n.feature_indices}",
                     f"is_leaf={n.is_leaf}",
                     str(n.state),
                 ]
             )
 
-        net = graphviz.Digraph(graph_attr={"size": "(6,6)"}, node_attr={"shape": "box"})
+        net = graphviz.Digraph(
+            graph_attr={"size": "(6,6)"}, node_attr={"shape": "record"}
+        )
 
         for node, children in bfs(self.tree_):
             net.node(info(node))
@@ -290,11 +294,13 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             threshold = x[-1]
             mask = X[:, feature_idx] < threshold
             levels = np.split_mask(X, mask)
-            weights = [len(level) / len(X) for level in levels]
-            impurity = [self._entropy(y[mask]), self._entropy(y[~mask])]
+            weights = np.array([len(level) / len(X) for level in levels])
+            impurity = np.array([self._entropy(y[mask]), self._entropy(y[~mask])])
             if DEBUG:
                 print(
-                    f"{weights} * {impurity}", np.dot(weights, impurity), sep="\n\t = "
+                    f"{weights.round(3)} * {impurity.round(3)}",
+                    np.dot(weights, impurity).round(3),
+                    sep="\n\t = ",
                 )
             return np.dot(weights, impurity)
 
@@ -409,7 +415,9 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             mask = X[:, feature_idx] == level
             return np.delete(X[mask], feature_idx, axis=1), y[mask], level
 
-    def _tree_builder(self, X, y, /, *, parent=None, branch=None, depth=0):
+    def _tree_builder(
+        self, X, y, /, *, feature_indices=None, parent=None, branch=None, depth=0
+    ):
         """Short Summary
 
         Extended Summary
@@ -434,6 +442,9 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         DecisionNode
         """
 
+        if feature_indices is None:
+            feature_indices = list(range(X.shape[1]))
+
         def make_node(value, *, deep=False):
             node = DecisionNode(
                 feature=value,
@@ -441,6 +452,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
                 parent=parent,
                 state=np.column_stack((X, y)),
                 classes=self.classes_,
+                feature_indices=feature_indices,
             )
             return deepcopy(node) if deep else node
 
@@ -461,12 +473,15 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         ]
 
         split_feature_idx = np.argmax(info_gains)
+        realized_split_feature_idx = feature_indices[np.argmax(info_gains)]
 
         # NOTE: `min_gain` hyperparameter is default to -1 bc the domain is [0, inf]
         if self.min_gain >= info_gains[split_feature_idx]:
             return make_node(mode(y))
 
-        split_feature = self.feature_names_[split_feature_idx]
+        # NOTE: we want the actual feature index with respect to the
+        # current partitioned dataset
+        split_feature = self.feature_names_[realized_split_feature_idx]
         split_node = make_node(split_feature, deep=True)
 
         if is_numeric_dtype(X[:, split_feature_idx]):
@@ -484,11 +499,24 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         if is_numeric_dtype(X[:, split_feature_idx]):
             levels = levels[0]
+        else:
+            # since we remove a column on categorical features, we need to
+            # keep track of the actual feature index Ex: [0, 1, 2] ->
+            # remove categorical feature idx (0) -> [1, 2] So if the next
+            # node is an categorical internal node and the split feature
+            # idx of the partitioned dataset is (1), the corresponding
+            # feature should be at index (2) from [1, 2] not (1) from [0,
+            # 1, 2].
+            feature_indices.remove(split_feature_idx)
 
         for *partition_data, level in levels:
             split_node.add(
                 self._tree_builder(
-                    *partition_data, parent=split_node, branch=level, depth=depth + 1
+                    *partition_data,
+                    feature_indices=deepcopy(feature_indices),
+                    parent=split_node,
+                    branch=level,
+                    depth=depth + 1,
                 )
             )
 

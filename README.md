@@ -46,6 +46,7 @@ The table above shows a set of eight processes ranked $(0, 1, ..., 7)$, distribu
 - [pandas](https://pypi.org/project/numpy/) (>= 1.5.2)
 - [matplotlib](https://pypi.org/project/matplotlib/) (>= 3.6.2)
 - [scikit-learn](https://pypi.org/project/scikit-learn/) (>= 1.2.2)
+- [graphviz](https://pypi.org/project/graphviz/) (>= 0.20.1)
 
 ## Installation
 
