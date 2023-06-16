@@ -1,8 +1,10 @@
 from ._node import DecisionNode
 from ._util import is_numeric_dtype, proba, split_mask
-from .decision_tree import DecisionTreeClassifier
-from .decision_tree import DecisionTreeRegressor
-from .decision_tree import ParallelDecisionTreeClassifier
+from .decision_tree import (
+    DecisionTreeClassifier,
+    DecisionTreeRegressor,
+    ParallelDecisionTreeClassifier,
+)
 
 __all__ = [
     "DecisionNode",
