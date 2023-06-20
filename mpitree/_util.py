@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.utils.validation import check_array
 
 
 def proba(x):
@@ -47,6 +48,8 @@ def is_numeric_dtype(X):
     -------
     bool
     """
+    X = check_array(X, ensure_2d=False, dtype=object)
+
     try:
         X.astype(np.float64)
         return True

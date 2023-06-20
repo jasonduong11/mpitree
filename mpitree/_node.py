@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import ClassVar, Optional, Union
 
@@ -36,12 +35,12 @@ class DecisionNode:
     parent : DecisionNode, optional
         The precedent node.
 
-    children : OrderedDict, default={}
+    children : dict, default={}
         The nodes on each split of the parent node.
 
     state : np.ndarray
-        2D dataset array with shape (n_samples, n_features+1) of
-        categorical and/or numerical values.
+        2D dataset array with shape (n_samples, n_features + 1) of either
+        or both categorical and numerical values.
 
     value : np.ndarray, init=False
         1D array with shape (n_classes,) of categorical (classification)
@@ -72,19 +71,20 @@ class DecisionNode:
     branch: str = None
     depth: int = field(default_factory=int)
     parent: Optional[DecisionNode] = field(default=None, repr=False)
-    children: OrderedDict = field(default_factory=dict, repr=False)
+    children: dict = field(default_factory=dict, repr=False)
     state: np.ndarray = field(default_factory=list, repr=False)
     value: np.ndarray = field(init=False)
     n_samples: int = field(init=False)
 
     # NOTE: contingent to future changes
     classes: np.ndarray = field(default_factory=list, repr=False)
+    # NOTE: only for debugging, remove later
     feature_indices: np.ndarray = field(default_factory=list)
 
     def __post_init__(self):
         n_unique_class = dict(zip(*np.unique(self.y, return_counts=True)))
+        self.value = np.array([n_unique_class.get(k, 0) for k in self.classes])
 
-        self.value = np.array([n_unique_class.get(c, 0) for c in self.classes])
         self.n_samples = len(self.y)
 
         if self.parent is not None:
@@ -103,52 +103,36 @@ class DecisionNode:
         """
 
         spacing = self.depth * "│  " + (
-            "└── " if self.is_leaf else "├── " if self.depth else "┌── "
+            "└──" if self.is_leaf else "├──" if self.depth else "┌──"
         )
 
-        feature = self.feature
-        branch = self.branch
+        info = self.feature
 
-        if not self.depth:
-            if self.is_leaf and self._estimator_type == "classifier":
-                return spacing + f"class: {feature}"
-            if self.is_leaf and self._estimator_type == "regressor":
-                return spacing + f"target: {feature}"
-            return spacing + str(feature)
+        if self.is_leaf and self._estimator_type == "classifier":
+            info = f"class: {self.feature}"
+        if self.is_leaf and self._estimator_type == "regressor":
+            info = f"target: {self.feature}"
 
-        if self.parent and self.parent.threshold:
+        if not self.parent:
+            # for root node, we don't include `branch`
+            # NOTE: the root node could be a leaf node too
+            return f"{spacing} {info}"
+        elif self.parent.threshold:
             # NOTE: numpy cannot have mix types so numerical value are
             # type casted to ``class <str>``
             if self.branch == "True":
                 branch = f"<= {float(self.parent.threshold):.2f}"
             else:
                 branch = f"> {float(self.parent.threshold):.2f}"
+        else:
+            branch = self.branch  # for categorical features
 
-        if self.is_leaf and self._estimator_type == "classifier":
-            return spacing + f"class: {feature} [{branch}]"
-        if self.is_leaf and self._estimator_type == "regressor":
-            return spacing + f"target: {feature} [{branch}]"
+        return f"{spacing} {info} [{branch}]"
 
-        return spacing + f"{feature} [{branch}]"
-
-    def __lt__(self, other: DecisionNode = None):
-        """Short Summary
-
-        Extended Summary
-
-        Parameters
-        ----------
-        other : DecisionNode, default=None
-
-        Returns
-        -------
-        bool
-
-        Notes
-        -----
-        The `other` parameter is unsed.
-        """
-        return self.is_leaf
+    def __getitem__(self, branch: Union[str, float]) -> DecisionNode:
+        if self.threshold is not None:
+            branch = ("True", "False")[branch <= self.threshold]
+        return self.children[branch]
 
     @property
     def y(self):
@@ -161,25 +145,6 @@ class DecisionNode:
         np.ndarray
         """
         return self.state[:, -1]
-
-    @property
-    def proba(self):
-        """Short Summary
-
-        Extended Summary
-
-        Returns
-        -------
-        np.ndarray
-
-        Notes
-        -----
-        if dataset is empty (``n_samples=0``), the probability would be
-        zero for each class as default.
-        """
-        if self.n_samples == 0:
-            return np.zeros(len(self.classes))
-        return self.value / self.n_samples
 
     @property
     def is_leaf(self):
@@ -203,50 +168,23 @@ class DecisionNode:
         return not self.children
 
     @property
-    def left(self) -> DecisionNode:
-        """Return the left child of a numeric-featured decision node.
+    def proba(self):
+        """Short Summary
 
-        The `left` property accesses the first item (i.e., child)
-        corresponding to the partition whose values for some feature
-        is less than the specified `threshold`.
+        Extended Summary
 
         Returns
         -------
-        DecisionNode or None
-            Returns a `DecisionNode` if its key exists in its parent first
-            child; otherwise, returns None.
+        np.ndarray
 
-        Raises
-        ------
-        TypeError
-            If `children` attribute is not type `dict`.
+        Notes
+        -----
+        if dataset is empty (``n_samples=0``), the probability would be
+        zero for each class as default.
         """
-        if not isinstance(self.children, dict):
-            raise TypeError(f"Expected `dict` type but got: {type(self.children)}")
-        return self.children.get("True")
-
-    @property
-    def right(self) -> DecisionNode:
-        """Return the right child of a numeric-featured decision node.
-
-        The `right` property accesses the second item (i.e., child)
-        corresponding to the partition whose values for some feature
-        is greater than or equal to the specified `threshold`.
-
-        Returns
-        -------
-        DecisionNode or None
-            Returns a `DecisionNode` if its key exists in its parent second
-            child; otherwise, returns None.
-
-        Raises
-        ------
-        TypeError
-            If `children` attribute is not type `dict`.
-        """
-        if not isinstance(self.children, dict):
-            raise TypeError(f"Expected `dict` type but got: {type(self.children)}")
-        return self.children.get("False")
+        if self.n_samples == 0:
+            return np.zeros(len(self.classes))
+        return self.value / self.n_samples
 
     def add(self, other: DecisionNode):
         """Add another node to a existing node children.
@@ -262,18 +200,6 @@ class DecisionNode:
         Returns
         -------
         DecisionNode
-
-        Raises
-        ------
-        TypeError
-            If `other` is not type `DecisionNode`.
-        AttributeError
-            If `other` branch attribute is not instantiated.
         """
-        if not isinstance(other, self.__class__):
-            raise TypeError("Expected `DecisionNode` type but got: %s", type(other))
-        if other.branch is None:
-            raise AttributeError("Object's `branch` attribute is not instantiated")
-
         self.children[other.branch] = other
         return self
