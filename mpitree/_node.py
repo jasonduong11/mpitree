@@ -78,12 +78,11 @@ class DecisionNode:
 
     # NOTE: contingent to future changes
     classes: np.ndarray = field(default_factory=list, repr=False)
-    # NOTE: only for debugging, remove later
-    feature_indices: np.ndarray = field(default_factory=list)
 
     def __post_init__(self):
-        n_unique_class = dict(zip(*np.unique(self.y, return_counts=True)))
-        self.value = np.array([n_unique_class.get(k, 0) for k in self.classes])
+        # TODO: refactor -> {0: 2, 2: 1} -> [2, 0, 1]
+        n_class_dist = dict(zip(*np.unique(self.y, return_counts=True)))
+        self.value = np.array([n_class_dist.get(k, 0) for k in self.classes])
 
         self.n_samples = len(self.y)
 
@@ -93,8 +92,13 @@ class DecisionNode:
     def __str__(self):
         """Export a string-formatted decision node.
 
-        The output string of a node is primarily dependent on the `depth`
-        for horizontal spacing and `branch`, either an interior or leaf.
+        Each decision node is prefixed by one of three branch types
+        specified for root, internal, and leaf decision nodes and is
+        followed by their corresponding feature or target value. Each
+        internal and leaf decision node displays a unique branch respective
+        of the parent split node. For leaf decision nodes, the target value
+        is additionally prefixed by either "class" or "target" depending on
+        the task (i.e., classification or regression).
 
         Returns
         -------
@@ -114,12 +118,11 @@ class DecisionNode:
             info = f"target: {self.feature}"
 
         if not self.parent:
-            # for root node, we don't include `branch`
-            # NOTE: the root node could be a leaf node too
+            # NOTE: the root node could be a leaf node.
             return f"{spacing} {info}"
         elif self.parent.threshold:
-            # NOTE: numpy cannot have mix types so numerical value are
-            # type casted to ``class <str>``
+            # NOTE: Numpy cannot have mix types so numerical value are
+            # type-casted to ``class <str>``.
             if self.branch == "True":
                 branch = f"<= {float(self.parent.threshold):.2f}"
             else:
@@ -135,18 +138,6 @@ class DecisionNode:
         return self.children[branch]
 
     @property
-    def y(self):
-        """Short Summary
-
-        Extended Summary
-
-        Returns
-        -------
-        np.ndarray
-        """
-        return self.state[:, -1]
-
-    @property
     def is_leaf(self):
         """Return whether a node is terminal.
 
@@ -158,13 +149,12 @@ class DecisionNode:
         -------
         bool
 
-        Raises
-        ------
-        TypeError
-            If `children` attribute is not type `dict`
+        Notes
+        -----
+        The function is well-defined for `DecisionNode` objects along a
+        fully constructed decision path. Recursion stops at a leaf decision
+        node and each internal decision node has at least one child.
         """
-        if not isinstance(self.children, dict):
-            raise TypeError(f"Expected `dict` type but got: {type(self.children)}")
         return not self.children
 
     @property
@@ -179,27 +169,19 @@ class DecisionNode:
 
         Notes
         -----
-        if dataset is empty (``n_samples=0``), the probability would be
-        zero for each class as default.
         """
         if self.n_samples == 0:
-            return np.zeros(len(self.classes))
+            return self.parent.value / self.parent.n_samples
         return self.value / self.n_samples
 
-    def add(self, other: DecisionNode):
-        """Add another node to a existing node children.
+    @property
+    def y(self):
+        """Short Summary
 
-        The operation will append another `DecisionNode` with its key, specified
-        by its `branch` value, to an existing `DecisionNode` children dictionary.
-
-        Parameters
-        ----------
-        other : DecisionNode
-            The child decision node.
+        Extended Summary
 
         Returns
         -------
-        DecisionNode
+        np.ndarray
         """
-        self.children[other.branch] = other
-        return self
+        return self.state[:, -1]

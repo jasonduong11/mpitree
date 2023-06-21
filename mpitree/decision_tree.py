@@ -45,9 +45,9 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
     def __str__(self):
         """Export a text-based visualization of a decision tree estimator.
 
-        The function is a wrapper function for the iterator magic method
-        that displays each string-formatted `DecisionNode` in a decision
-        tree estimator.
+        The function is a wrapper function for the overloaded `iter`
+        method that displays each string-formatted `DecisionNode` in a
+        decision tree estimator.
 
         Returns
         -------
@@ -60,8 +60,8 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
         """Perform a depth-first search on a decision tree estimator.
 
         The iterative traversal starts at the root decision node, explores
-        as deep as possible from its sorted children, and backtracks after
-        reaching a leaf decision node.
+        as deep as possible from its prioritized children, and backtracks
+        after reaching a leaf decision node.
 
         Yields
         ------
@@ -71,12 +71,12 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
         -----
         Since a decision tree estimator is a DAG (Directed Acyclic Graph)
         data structure, we do not maintain a list of visited nodes for
-        nodes already explored or inspect the stack for nodes yet to be
-        explored.
+        nodes already explored or the frontier for nodes already pushed,
+        but yet to be explored (i.e., duplicate nodes).
 
-        The ordering of children decision nodes at each level in the stack
-        is as follows, non-leaf always precedes leaf nodes. This provides
-        the minimum number of disjoint branch components at each level of a
+        The ordering of decision nodes at each level in the stack is as
+        follows, non-leaf always precedes leaf nodes. This provides the
+        minimum number of disjoint branch components at each level of a
         decision tree estimator.
         """
         check_is_fitted(self)
@@ -162,9 +162,16 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
         check_is_fitted(self)
         X = check_array(X, dtype=object)
 
-        return np.array([pred.feature for pred in self._compute_decision_paths(X)])
+        return np.vectorize(lambda node: node.feature)(self._compute_decision_paths(X))
 
     def export_graphviz(self):
+        """Short Summary
+
+        Extended Summary
+
+        Returns
+        -------
+        """
         from collections import deque
 
         import graphviz
@@ -187,7 +194,6 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
                     f"depth={n.depth}",
                     f"value={n.value}={n.n_samples}",
                     f"proba={n.proba.round(2)}",
-                    f"feature_indices={n.feature_indices}",
                     f"is_leaf={n.is_leaf}",
                     str(n.state),
                 ]
@@ -246,7 +252,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         X, y = check_X_y(X, y, dtype=object)
 
         self.classes_ = np.unique(y)
-        self.possible_thresholds_ = {}
+        self.pred_thresholds_ = {}
 
         self.unique_levels_ = {
             feature_idx: (
@@ -359,7 +365,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         if is_numeric_dtype(X[:, feature_idx]):
             (
                 max_gain,
-                self.possible_thresholds_[feature_idx],
+                self.pred_thresholds_[feature_idx],
             ) = self._compute_optimal_threshold(X, y, feature_idx)
         else:
             if DEBUG:
@@ -419,10 +425,10 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         """
         if split_node.threshold is not None:
             mask = X[:, feature_idx] < split_node.threshold
-            return [
-                (tree, y[mask if level == "True" else ~mask], level)
-                for tree, level in zip(np.split_mask(X, mask), ["True", "False"])
-            ]
+            n_subtrees = zip(
+                np.split_mask(X, mask), np.split_mask(y, mask), ("True", "False")
+            )
+            return n_subtrees
 
         if DEBUG:
             mask = X[:, feature_idx] == level
@@ -474,12 +480,10 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
                     parent=parent,
                     state=np.column_stack((X, y)),
                     classes=self.classes_,
-                    feature_indices=feature_indices,
                 )
             )
 
-        # NOTE: trivial case if |X| == 1
-        if len(np.unique(y)) == 1:
+        if len(np.unique(y)) == 1:  # NOTE: trivial case if |X| == 1
             return make_node(mode(y))
         if not X.size:
             return make_node(mode(parent.y))
@@ -490,16 +494,16 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         if self.min_samples_split >= len(X):
             return make_node(mode(y))
 
-        info_gains = [
+        feature_importances = [
             self._compute_information_gain(X, y, feature_idx)
             for feature_idx in range(X.shape[1])
         ]
 
-        split_feature_idx = np.argmax(info_gains)
-        realized_split_feature_idx = feature_indices[np.argmax(info_gains)]
+        split_feature_idx = np.argmax(feature_importances)
+        realized_split_feature_idx = feature_indices[split_feature_idx]
 
         # NOTE: `min_gain` hyperparameter is default to -1 bc the domain is [0, inf]
-        if self.min_gain >= info_gains[split_feature_idx]:
+        if self.min_gain >= feature_importances[split_feature_idx]:
             return make_node(mode(y))
 
         # NOTE: we want the actual feature index with respect to the
@@ -508,20 +512,20 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         split_node = make_node(split_feature)
 
         if is_numeric_dtype(X[:, split_feature_idx]):
-            split_node.threshold = self.possible_thresholds_[split_feature_idx]
+            split_node.threshold = self.pred_thresholds_[split_feature_idx]
 
         if DEBUG:
             print(f"\nSplit on Feature: {split_feature}")
             print(50 * "-")
             print(X)
 
-        levels = [
+        n_subtrees = [
             self._partition_data(X, y, split_feature_idx, level, split_node)
             for level in self.unique_levels_[split_feature_idx]
         ]
 
         if is_numeric_dtype(X[:, split_feature_idx]):
-            levels = levels[0]
+            n_subtrees = n_subtrees[0]
         else:
             # since we remove a column on categorical features, we need to
             # keep track of the actual feature index Ex: [0, 1, 2] ->
@@ -536,16 +540,15 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             # end ([0, 1, 2] -> [0, 1]) since the indices are preserved.
             feature_indices.remove(split_feature_idx)
 
-        for *partition_data, level in levels:
-            split_node.add(
-                self._tree_builder(
-                    *partition_data,
-                    feature_indices=deepcopy(feature_indices),
-                    parent=split_node,
-                    branch=level,
-                    depth=depth + 1,
-                )
+        for *partition_data, branch in n_subtrees:
+            subtree = self._tree_builder(
+                *partition_data,
+                feature_indices=deepcopy(feature_indices),
+                parent=split_node,
+                branch=branch,
+                depth=depth + 1,
             )
+            split_node.children[branch] = subtree
 
         return split_node
 
@@ -567,7 +570,9 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         check_is_fitted(self)
         X = check_array(X, dtype=object)
 
-        return np.array([pred.proba for pred in self._compute_decision_paths(X)])
+        return np.vectorize(lambda node: node.proba, signature="()->(n)")(
+            self._compute_decision_paths(X)
+        )
 
     def score(self, X, y):
         """Evaluates the performance of a decision tree classifier.
