@@ -1,4 +1,4 @@
-"""This module contains the node class."""
+""""""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ class DecisionNode:
     depth: int = field(default_factory=int)
     parent: Optional[DecisionNode] = field(default=None, repr=False)
     children: dict = field(default_factory=dict, repr=False)
-    state: np.ndarray = field(default_factory=list, repr=False)
+    target: np.ndarray = field(default_factory=list, repr=False)
     value: np.ndarray = field(init=False)
     n_samples: int = field(init=False)
 
@@ -81,10 +81,10 @@ class DecisionNode:
 
     def __post_init__(self):
         # TODO: refactor -> {0: 2, 2: 1} -> [2, 0, 1]
-        n_class_dist = dict(zip(*np.unique(self.y, return_counts=True)))
+        n_class_dist = dict(zip(*np.unique(self.target, return_counts=True)))
         self.value = np.array([n_class_dist.get(k, 0) for k in self.classes])
 
-        self.n_samples = len(self.y)
+        self.n_samples = len(self.target)
 
         if self.parent is not None:
             self.depth = self.parent.depth + 1
@@ -120,7 +120,8 @@ class DecisionNode:
         if not self.parent:
             # NOTE: the root node could be a leaf node.
             return f"{spacing} {info}"
-        elif self.parent.threshold:
+
+        if self.parent.threshold:
             # NOTE: Numpy cannot have mix types so numerical value are
             # type-casted to ``class <str>``.
             if self.branch == "True":
@@ -132,10 +133,25 @@ class DecisionNode:
 
         return f"{spacing} {info} [{branch}]"
 
-    def __getitem__(self, branch: Union[str, float]) -> DecisionNode:
-        if self.threshold is not None:
-            branch = ("True", "False")[branch <= self.threshold]
-        return self.children[branch]
+    def __getitem__(self, other: str | float) -> DecisionNode:
+        """Short Summary
+
+        Extended Summary
+
+        Parameters
+        ----------
+        other : str or float
+
+        Returns
+        -------
+        DecisionNode
+        """
+        # if self.threshold is not None:
+        #     branch = ("True", "False")[other <= self.threshold]
+        # else:
+        #     branch = other
+        # return self.children[branch]
+        return self.children[other]
 
     @property
     def is_leaf(self):
@@ -151,37 +167,9 @@ class DecisionNode:
 
         Notes
         -----
-        The function is well-defined for `DecisionNode` objects along a
-        fully constructed decision path. Recursion stops at a leaf decision
-        node and each internal decision node has at least one child.
+        The function is well-defined for all `DecisionNode` along a
+        fully constructed decision path as the algorithm backtracks
+        on a leaf decision node and each internal decision node has
+        at least one child.
         """
         return not self.children
-
-    @property
-    def proba(self):
-        """Short Summary
-
-        Extended Summary
-
-        Returns
-        -------
-        np.ndarray
-
-        Notes
-        -----
-        """
-        if self.n_samples == 0:
-            return self.parent.value / self.parent.n_samples
-        return self.value / self.n_samples
-
-    @property
-    def y(self):
-        """Short Summary
-
-        Extended Summary
-
-        Returns
-        -------
-        np.ndarray
-        """
-        return self.state[:, -1]

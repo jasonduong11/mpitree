@@ -1,9 +1,13 @@
+""""""
+
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
+from collections import deque
 from copy import deepcopy
 from statistics import mode
 
+import graphviz
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
@@ -23,10 +27,10 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
 
     Parameters
     ----------
-    max_depth : int, default=inf
+    max_depth : int, default=None
         A hyperparameter that bounds the number of splits.
 
-    min_samples_split : int, default=1
+    min_samples_split : int, default=2
         A hyperparameter that bounds the number of samples required to
         split.
 
@@ -36,10 +40,9 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def __init__(self, *, max_depth, min_samples_split, min_gain, estimator_type):
-        self.max_depth = max_depth
-        self.min_samples_split = min_samples_split
-        self.min_gain = min_gain
+    def __init__(self, *, max_depth, min_samples_split, estimator_type):
+        self.max_depth = max_depth  # [0, inf)
+        self.min_samples_split = min_samples_split  # [2, inf]
         DecisionNode._estimator_type = estimator_type
 
     def __str__(self):
@@ -83,13 +86,13 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
 
         frontier = [self.tree_]
         while frontier:
-            node = frontier.pop()
-            yield node
+            tree_node = frontier.pop()
+            yield tree_node
             frontier.extend(
-                sorted(node.children.values(), key=lambda node: not node.is_leaf)
+                sorted(tree_node.children.values(), key=lambda n: not n.is_leaf)
             )
 
-    def _compute_decision_paths(self, X):
+    def _decision_paths(self, X):
         """Short Summary
 
         Extended Summary
@@ -133,15 +136,24 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
             """
             tree_node = self.tree_
             while not tree_node.is_leaf:
-                node_feature_idx = self.feature_names_.index(tree_node.feature)
-                query_level = x[node_feature_idx]
+                feature_idx = self.feature_names_.index(tree_node.feature)
+                query_level = x[feature_idx]
                 tree_node = tree_node[query_level]
             return tree_node
 
         return np.apply_along_axis(tree_walk, axis=1, arr=X)
 
     @abstractmethod
-    def _tree_builder(self):
+    def _tree_builder(
+        self,
+        *,
+        X: np.ndarray,
+        y: np.ndarray,
+        feature_indices: list,
+        parent: DecisionNode,
+        branch: str | float,
+        depth: int,
+    ) -> DecisionNode:
         ...
 
     def predict(self, X):
@@ -162,7 +174,7 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
         check_is_fitted(self)
         X = check_array(X, dtype=object)
 
-        return np.vectorize(lambda node: node.feature)(self._compute_decision_paths(X))
+        return np.vectorize(lambda node: node.feature)(self._decision_paths(X))
 
     def export_graphviz(self):
         """Short Summary
@@ -172,30 +184,26 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
         Returns
         -------
         """
-        from collections import deque
 
-        import graphviz
+        # check is fitted here
 
-        def bfs(s):
-            queue = deque([s])
+        def bfs(source):
+            queue = deque([source])
             while queue:
                 node = queue.popleft()
-                # NOTE: we don't care about order here
                 children = node.children.values()
                 yield node, children
                 queue.extend(children)
 
-        def info(n):
+        def info(node):
             return "\n".join(
                 [
-                    f"feature={n.feature}",
-                    f"threshold={n.threshold}",
-                    f"branch={n.branch}",
-                    f"depth={n.depth}",
-                    f"value={n.value}={n.n_samples}",
-                    f"proba={n.proba.round(2)}",
-                    f"is_leaf={n.is_leaf}",
-                    str(n.state),
+                    f"feature={node.feature}",
+                    f"threshold={node.threshold}",
+                    f"branch={node.branch}",
+                    f"depth={node.depth}",
+                    f"value={node.value}={node.n_samples}",
+                    f"is_leaf={node.is_leaf}",
                 ]
             )
 
@@ -213,11 +221,10 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
 
 
 class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
-    def __init__(self, *, max_depth=np.inf, min_samples_split=1, min_gain=-1):
+    def __init__(self, *, max_depth=None, min_samples_split=2):
         super().__init__(
             max_depth=max_depth,
             min_samples_split=min_samples_split,
-            min_gain=min_gain,
             estimator_type="classifier",
         )
 
@@ -244,15 +251,19 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         The `feature_names` attribute is a `list` type so we can use the
         `index` method.
         """
-        if isinstance(X, np.ndarray):
+        if isinstance(X, list):
+            self.feature_names_ = [f"feature_{i}" for i in range(len(X[0]))]
+        elif isinstance(X, np.ndarray):
             self.feature_names_ = [f"feature_{i}" for i in range(X.shape[1])]
         elif isinstance(X, pd.DataFrame):
             self.feature_names_ = X.columns.values.tolist()
+        else:
+            raise Exception("could not find type for `feature_names_` var")
 
         X, y = check_X_y(X, y, dtype=object)
 
         self.classes_ = np.unique(y)
-        self.pred_thresholds_ = {}
+        self.n_thresholds_ = {}
 
         self.unique_levels_ = {
             feature_idx: (
@@ -291,9 +302,9 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
                 sep="\n\t\t = ",
             )
             return -np.sum(proba * np.log2(proba))
-        else:
-            proba = np.proba(x)
-            return -np.sum(proba * np.log2(proba))
+
+        proba = np.proba(x)
+        return -np.sum(proba * np.log2(proba))
 
     def _compute_optimal_threshold(self, X, y, feature_idx):
         """Short Summary
@@ -360,12 +371,12 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         Returns
         -------
-        max_gain : The maximm information gain value.
+        max_gain : The maximum information gain value.
         """
         if is_numeric_dtype(X[:, feature_idx]):
             (
                 max_gain,
-                self.pred_thresholds_[feature_idx],
+                self.n_thresholds_[feature_idx],
             ) = self._compute_optimal_threshold(X, y, feature_idx)
         else:
             if DEBUG:
@@ -380,8 +391,8 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
                 weight = np.proba(X[:, feature_idx])
                 impurity = []
                 for level in np.unique(X[:, feature_idx]):
-                    a = self._entropy(y[X[:, feature_idx] == level])
-                    impurity.append(a)
+                    entropy = self._entropy(y[X[:, feature_idx] == level])
+                    impurity.append(entropy)
 
                 print(
                     f"\t = {weight.round(3)} x {np.array(impurity).round(3)}",
@@ -398,6 +409,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
                     for level in np.unique(X[:, feature_idx])
                 ]
                 max_gain = self._entropy(y) - np.dot(weight, impurity)
+
         return max_gain
 
     def _partition_data(self, X, y, feature_idx, level, split_node):
@@ -425,6 +437,10 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         """
         if split_node.threshold is not None:
             mask = X[:, feature_idx] < split_node.threshold
+
+            assert all(i.size for i in np.split_mask(X, mask))
+            assert all(i.size for i in np.split_mask(y, mask))
+
             n_subtrees = zip(
                 np.split_mask(X, mask), np.split_mask(y, mask), ("True", "False")
             )
@@ -432,18 +448,18 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         if DEBUG:
             mask = X[:, feature_idx] == level
-            a = np.delete(X[mask], feature_idx, axis=1)
+            D = np.delete(X[mask], feature_idx, axis=1)
             print(50 * "-")
-            print(np.column_stack((a, y[mask])))
+            print(np.column_stack((D, y[mask])))
             print("+")
             print(X[mask])
-            return a, y[mask], level
-        else:
-            mask = X[:, feature_idx] == level
-            return np.delete(X[mask], feature_idx, axis=1), y[mask], level
+            return D, y[mask], level
+
+        mask = X[:, feature_idx] == level
+        return np.delete(X[mask], feature_idx, axis=1), y[mask], level
 
     def _tree_builder(
-        self, X, y, /, *, feature_indices=None, parent=None, branch=None, depth=0
+        self, X, y, *, feature_indices=None, parent=None, branch=None, depth=0
     ):
         """Short Summary
 
@@ -478,20 +494,20 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
                     feature=value,
                     branch=branch,
                     parent=parent,
-                    state=np.column_stack((X, y)),
+                    target=y,
                     classes=self.classes_,
                 )
             )
 
-        if len(np.unique(y)) == 1:  # NOTE: trivial case if |X| == 1
+        if len(np.unique(y)) == 1:
             return make_node(mode(y))
         if not X.size:
-            return make_node(mode(parent.y))
+            return make_node(mode(parent.target))
         if np.all(X == X[0]):
             return make_node(mode(y))
-        if self.max_depth == depth:
+        if self.max_depth is not None and self.max_depth == depth:
             return make_node(mode(y))
-        if self.min_samples_split >= len(X):
+        if self.min_samples_split > len(X):
             return make_node(mode(y))
 
         feature_importances = [
@@ -500,19 +516,13 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         ]
 
         split_feature_idx = np.argmax(feature_importances)
-        realized_split_feature_idx = feature_indices[split_feature_idx]
+        norm_split_feature_idx = feature_indices[split_feature_idx]
 
-        # NOTE: `min_gain` hyperparameter is default to -1 bc the domain is [0, inf]
-        if self.min_gain >= feature_importances[split_feature_idx]:
-            return make_node(mode(y))
-
-        # NOTE: we want the actual feature index with respect to the
-        # current partitioned dataset
-        split_feature = self.feature_names_[realized_split_feature_idx]
+        split_feature = self.feature_names_[norm_split_feature_idx]
         split_node = make_node(split_feature)
 
         if is_numeric_dtype(X[:, split_feature_idx]):
-            split_node.threshold = self.pred_thresholds_[split_feature_idx]
+            split_node.threshold = self.n_thresholds_[split_feature_idx]
 
         if DEBUG:
             print(f"\nSplit on Feature: {split_feature}")
@@ -533,16 +543,17 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             # node is an categorical internal node and the split feature
             # idx of the partitioned dataset is (1), the corresponding
             # feature should be at index (2) from [1, 2] not (1) from [0,
-            # 1, 2]. NOTE: `feature_indices` should be equal for decision
+            # 1]. NOTE: `feature_indices` should be equal for decision
             # nodes at the same level This does not occur if the decision
             # node is a leaf since the `feature` attribute would be the
             # target value and if the split categorical feature is at the
             # end ([0, 1, 2] -> [0, 1]) since the indices are preserved.
-            feature_indices.remove(split_feature_idx)
+            del feature_indices[split_feature_idx]
 
-        for *partition_data, branch in n_subtrees:
+        for X, y, branch in n_subtrees:
             subtree = self._tree_builder(
-                *partition_data,
+                X=X,
+                y=y,
                 feature_indices=deepcopy(feature_indices),
                 parent=split_node,
                 branch=branch,
@@ -550,6 +561,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             )
             split_node.children[branch] = subtree
 
+        del feature_indices
         return split_node
 
     def predict_proba(self, X):
@@ -570,8 +582,13 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         check_is_fitted(self)
         X = check_array(X, dtype=object)
 
-        return np.vectorize(lambda node: node.proba, signature="()->(n)")(
-            self._compute_decision_paths(X)
+        def compute_class_proba(tree_node):
+            if tree_node.n_samples == 0:
+                return tree_node.parent.value / tree_node.parent.n_samples
+            return tree_node.value / tree_node.n_samples
+
+        return np.vectorize(compute_class_proba, signature="()->(n)")(
+            self._decision_paths(X)
         )
 
     def score(self, X, y):
@@ -606,11 +623,10 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
     Extended Summary
     """
 
-    def __init__(self, *, max_depth=np.inf, min_samples_split=1, min_gain=-1):
+    def __init__(self, *, max_depth=np.inf, min_samples_split=1):
         super().__init__(
             max_depth=max_depth,
             min_samples_split=min_samples_split,
-            min_gain=min_gain,
             estimator_type="regressor",
         )
 
@@ -635,7 +651,7 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
         X, y = check_X_y(X, y, y_numeric=True)
         return self
 
-    def _tree_builder(self, X, y, /, *, parent=None, branch=None, depth=0):
+    def _tree_builder(self, *, X, y, parent=None, branch=None, depth=0):
         """Short Summary
 
         Extended Summary
@@ -718,7 +734,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         return comm.Split(color, key)
 
     def _tree_builder(
-        self, X, y, /, comm=WORLD_COMM, *, parent=None, branch=None, depth=0
+        self, *, X, y, parent=None, branch=None, depth=0, comm=WORLD_COMM
     ):
         """Short Summary
 

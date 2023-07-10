@@ -1,3 +1,5 @@
+""""""
+
 import numpy as np
 from sklearn.utils.validation import check_array
 
@@ -15,7 +17,8 @@ def proba(x):
     -------
     np.ndarray
     """
-    return np.unique(x, return_counts=True)[1] / len(x)
+    _, n_class_dist = np.unique(x, return_counts=True)
+    return n_class_dist / len(x)
 
 
 def split_mask(X, mask):
