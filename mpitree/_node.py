@@ -38,9 +38,9 @@ class DecisionNode:
     children : dict, default={}
         The nodes on each split of the parent node.
 
-    state : np.ndarray
-        2D dataset array with shape (n_samples, n_features + 1) of either
-        or both categorical and numerical values.
+    target: np.ndarray
+        1D dataset array with shape (n_samples,) of either categorical or
+        numerical values.
 
     value : np.ndarray, init=False
         1D array with shape (n_classes,) of categorical (classification)
@@ -146,12 +146,11 @@ class DecisionNode:
         -------
         DecisionNode
         """
-        # if self.threshold is not None:
-        #     branch = ("True", "False")[other <= self.threshold]
-        # else:
-        #     branch = other
-        # return self.children[branch]
-        return self.children[other]
+        if self.threshold is not None:
+            branch = ("True", "False")[other <= self.threshold]
+        else:
+            branch = other
+        return self.children[branch]
 
     @property
     def is_leaf(self):

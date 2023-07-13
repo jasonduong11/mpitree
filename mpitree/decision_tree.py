@@ -28,21 +28,17 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
     Parameters
     ----------
     max_depth : int, default=None
-        A hyperparameter that bounds the number of splits.
+        A hyperparameter that upper bounds the number of splits.
 
     min_samples_split : int, default=2
-        A hyperparameter that bounds the number of samples required to
+        A hyperparameter that lower bounds the number of samples required to
         split.
-
-    min_gain : float, default=-1
-        A hyperparmeter that bounds the amount of information gain required
-        to split.
     """
 
     @abstractmethod
     def __init__(self, *, max_depth, min_samples_split, estimator_type):
         self.max_depth = max_depth  # [0, inf)
-        self.min_samples_split = min_samples_split  # [2, inf]
+        self.min_samples_split = min_samples_split  # [2, inf)
         DecisionNode._estimator_type = estimator_type
 
     def __str__(self):
@@ -446,8 +442,9 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             )
             return n_subtrees
 
+        mask = X[:, feature_idx] == level
+
         if DEBUG:
-            mask = X[:, feature_idx] == level
             D = np.delete(X[mask], feature_idx, axis=1)
             print(50 * "-")
             print(np.column_stack((D, y[mask])))
@@ -455,7 +452,6 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             print(X[mask])
             return D, y[mask], level
 
-        mask = X[:, feature_idx] == level
         return np.delete(X[mask], feature_idx, axis=1), y[mask], level
 
     def _tree_builder(
@@ -704,61 +700,62 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
 
 
 class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
-    """Short Summary
+    pass
+#     """Short Summary
 
-    Extended Summary
-    """
+#     Extended Summary
+#     """
 
-    from mpi4py import MPI
+#     from mpi4py import MPI
 
-    WORLD_COMM = MPI.COMM_WORLD
-    WORLD_RANK = WORLD_COMM.Get_rank()
-    WORLD_SIZE = WORLD_COMM.Get_size()
+#     WORLD_COMM = MPI.COMM_WORLD
+#     WORLD_RANK = WORLD_COMM.Get_rank()
+#     WORLD_SIZE = WORLD_COMM.Get_size()
 
-    def Get_cyclic_dist(
-        self, comm: MPI.Intracomm = None, *, n_block: int = 1
-    ) -> MPI.Intracomm:
-        """Schedules processes in a round-robin fashion.
+#     def Get_cyclic_dist(
+#         self, comm: MPI.Intracomm = None, *, n_block: int = 1
+#     ) -> MPI.Intracomm:
+#         """Schedules processes in a round-robin fashion.
 
-        Parameters
-        ----------
-        comm : MPI.Intracomm, default=None
-        n_block : int, default=1
+#         Parameters
+#         ----------
+#         comm : MPI.Intracomm, default=None
+#         n_block : int, default=1
 
-        Returns
-        -------
-        MPI.Intracomm
-        """
-        rank = comm.Get_rank()
-        key, color = divmod(rank, n_block)
-        return comm.Split(color, key)
+#         Returns
+#         -------
+#         MPI.Intracomm
+#         """
+#         rank = comm.Get_rank()
+#         key, color = divmod(rank, n_block)
+#         return comm.Split(color, key)
 
-    def _tree_builder(
-        self, *, X, y, parent=None, branch=None, depth=0, comm=WORLD_COMM
-    ):
-        """Short Summary
+#     def _tree_builder(
+#         self, *, X, y, parent=None, branch=None, depth=0, comm=WORLD_COMM
+#     ):
+#         """Short Summary
 
-        Extended Summary
+#         Extended Summary
 
-        Parameters
-        ----------
-        X : np.ndarray
-            2D feature matrix with shape (n_samples, n_features) of either
-            or both categorical and numerical values.
+#         Parameters
+#         ----------
+#         X : np.ndarray
+#             2D feature matrix with shape (n_samples, n_features) of either
+#             or both categorical and numerical values.
 
-        y : np.ndarray
-            1D target array with shape (n_samples,) of numerical values.
+#         y : np.ndarray
+#             1D target array with shape (n_samples,) of numerical values.
 
-        comm : MPI.Intracomm, default=WORLD_COMM
+#         comm : MPI.Intracomm, default=WORLD_COMM
 
-        parent : DecisionTreeRegressor, default=None
+#         parent : DecisionTreeRegressor, default=None
 
-        branch : str, default=None
+#         branch : str, default=None
 
-        depth : int, default=0
+#         depth : int, default=0
 
-        Returns
-        -------
-        DecisionNode
-        """
-        raise NotImplementedError
+#         Returns
+#         -------
+#         DecisionNode
+#         """
+#         raise NotImplementedError
