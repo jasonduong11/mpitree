@@ -172,48 +172,48 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
 
         return np.vectorize(lambda node: node.feature)(self._decision_paths(X))
 
-    def export_graphviz(self):
-        """Short Summary
+    # def export_graphviz(self):
+    #     """Short Summary
 
-        Extended Summary
+    #     Extended Summary
 
-        Returns
-        -------
-        """
+    #     Returns
+    #     -------
+    #     """
 
-        # check is fitted here
+    #     check_is_fitted(self)
 
-        def bfs(source):
-            queue = deque([source])
-            while queue:
-                node = queue.popleft()
-                children = node.children.values()
-                yield node, children
-                queue.extend(children)
+    #     def bfs(source):
+    #         queue = deque([source])
+    #         while queue:
+    #             node = queue.popleft()
+    #             children = node.children.values()
+    #             yield node, children
+    #             queue.extend(children)
 
-        def info(node):
-            return "\n".join(
-                [
-                    f"feature={node.feature}",
-                    f"threshold={node.threshold}",
-                    f"branch={node.branch}",
-                    f"depth={node.depth}",
-                    f"value={node.value}={node.n_samples}",
-                    f"is_leaf={node.is_leaf}",
-                ]
-            )
+    #     def info(node):
+    #         return "\n".join(
+    #             [
+    #                 f"feature={node.feature}",
+    #                 f"threshold={node.threshold}",
+    #                 f"branch={node.branch}",
+    #                 f"depth={node.depth}",
+    #                 f"value={node.value}={node.n_samples}",
+    #                 f"is_leaf={node.is_leaf}",
+    #             ]
+    #         )
 
-        net = graphviz.Digraph(
-            graph_attr={"size": "(6,6)"}, node_attr={"shape": "record"}
-        )
+    #     net = graphviz.Digraph(
+    #         graph_attr={"size": "(6,6)"}, node_attr={"shape": "record"}
+    #     )
 
-        for node, children in bfs(self.tree_):
-            net.node(info(node))
-            for i, child in enumerate(children):
-                net.node(info(child))
-                net.edge(info(node), info(child), label=list(node.children)[i])
+    #     for node, children in bfs(self.tree_):
+    #         net.node(info(node))
+    #         for i, child in enumerate(children):
+    #             net.node(info(child))
+    #             net.edge(info(node), info(child), label=list(node.children)[i])
 
-        return net
+    #     return net
 
 
 class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
@@ -588,7 +588,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         )
 
     def score(self, X, y):
-        """Evaluates the performance of a decision tree classifier.
+        """Evaluate the performance of a decision tree classifier.
 
         The metric used to evaluate the performance of a decision tree
         classifier is `sklearn.metrics.accuracy_score`.
@@ -674,7 +674,7 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
         raise NotImplementedError
 
     def score(self, X, y):
-        """Evaluates the performance of a decision tree regressor.
+        """Evaluate the performance of a decision tree regressor.
 
         The metric used to evaluate the performance of a decision tree
         regressor is `sklearn.metrics.mean_square_error`.
@@ -701,6 +701,8 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
 
 class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
     pass
+
+
 #     """Short Summary
 
 #     Extended Summary
