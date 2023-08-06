@@ -15,23 +15,6 @@ from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 from ._node import DecisionNode
 
 
-def proba(x):
-    """Short Summary
-
-    Extended Summary
-
-    Parameters
-    ----------
-    x : array-like, ndim=1
-
-    Returns
-    -------
-    ndarray
-    """
-    _, n_class_dist = np.unique(x, return_counts=True)
-    return n_class_dist / len(x)
-
-
 def split_mask(X, mask):
     """Short Summary
 
@@ -49,7 +32,6 @@ def split_mask(X, mask):
     return [X[mask], X[~mask]]
 
 
-np.proba = proba
 np.split_mask = split_mask
 
 
@@ -128,8 +110,7 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
         Parameters
         ----------
         X : array-like
-            2D test feature matrix with shape (n_samples, n_features) of
-            either or both categorical and numerical values.
+            2D test feature matrix with shape (n_samples, n_features) of numerical values.
 
         Returns
         -------
@@ -197,7 +178,7 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
         ----------
         X : array-like
             2D test feature matrix with shape (n_samples, n_features) of
-            either or both categorical and numerical values.
+            numerical values.
 
         Returns
         -------
@@ -221,8 +202,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         Parameters
         ----------
         X : array-like
-            2D feature matrix with shape (n_samples, n_features) of either
-            or both categorical and numerical values.
+            2D feature matrix with shape (n_samples, n_features) of numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
@@ -255,7 +235,9 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         -------
         float
         """
-        proba = np.proba(x)
+
+        _, n_unique_classes = np.unique(x, return_counts=True)
+        proba = n_unique_classes / len(x)
         return -np.sum(proba * np.log2(proba))
 
     def _compute_information_gain(self, X, y, feature_idx):
@@ -266,8 +248,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         Parameters
         ----------
         X : array-like
-            2D feature matrix with shape (n_samples, n_features) of either
-            or both categorical and numerical values.
+            2D feature matrix with shape (n_samples, n_features) of numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
@@ -309,8 +290,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         Parameters
         ----------
         X : array-like
-            2D feature matrix with shape (n_samples, n_features) of either
-            or both categorical and numerical values.
+            2D feature matrix with shape (n_samples, n_features) of numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
@@ -387,8 +367,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         Parameters
         ----------
         X : array-like
-            2D test feature matrix with shape (n_samples, n_features) of
-            either or both categorical and numerical values.
+            2D test feature matrix with shape (n_samples, n_features) of numerical values.
 
         y : array-like
             1D test target array with shape (n_samples,) of categorical values.
@@ -442,8 +421,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         Parameters
         ----------
         X : array-like
-            2D feature matrix with shape (n_samples, n_features) of either
-            or both categorical and numerical values.
+            2D feature matrix with shape (n_samples, n_features) of numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of numerical values.
@@ -460,4 +438,83 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         -------
         DecisionNode
         """
-        raise NotImplementedError
+
+        def make_node(feature, threshold=None):
+            return deepcopy(
+                DecisionNode(
+                    feature=feature,
+                    threshold=threshold,
+                    branch=branch,
+                    parent=parent,
+                    target=y,
+                )
+            )
+
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+
+        if len(np.unique(y)) == 1:
+            return make_node(mode(y))
+        if not X.size:
+            return make_node(mode(parent.target))
+        if np.all(X == X[0]):
+            return make_node(mode(y))
+        if self.max_depth is not None and self.max_depth == depth:
+            return make_node(mode(y))
+        if self.min_samples_split > len(X):
+            return make_node(mode(y))
+
+        feature_importances = [
+            self._compute_information_gain(X, y, feature_idx)
+            for feature_idx in range(X.shape[1])
+        ]
+
+        split_feature = np.argmax(feature_importances)
+        split_node = make_node(
+            feature=split_feature, threshold=self.n_thresholds_[split_feature]
+        )
+
+        mask = X[:, split_feature] <= split_node.threshold
+
+        assert all(i.size for i in np.split_mask(X, mask))
+        assert all(i.size for i in np.split_mask(y, mask))
+
+        n_subtrees = zip(np.split_mask(X, mask), np.split_mask(y, mask), ("<=", ">"))
+
+        if size == 1:
+            for X, y, branch in n_subtrees:
+                subtree = self._make_tree(
+                    X=X,
+                    y=y,
+                    parent=split_node,
+                    branch=branch,
+                    depth=depth + 1,
+                    comm=comm,
+                )
+                split_node.children[branch] = subtree
+        else:
+            group = self.Get_cyclic_dist(comm, 2)
+
+            level = rank % 2
+            X, y, branch = n_subtrees[level]
+
+            levels = comm.allgather(
+                {
+                    branch: self._make_tree(
+                        X=X,
+                        y=y,
+                        parent=split_node,
+                        branch=branch,
+                        depth=depth + 1,
+                        comm=group,
+                    )
+                }
+            )
+
+            for level in levels:
+                for branch, tree_node in level.items():
+                    split_node.children[branch] = tree_node
+
+            group.Free()
+
+        return split_node
