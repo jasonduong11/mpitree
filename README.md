@@ -45,7 +45,6 @@ The table above shows a set of eight processes ranked $(0, 1, ..., 7)$, distribu
 - [pandas](https://pypi.org/project/numpy/) (>= 1.5.2)
 - [matplotlib](https://pypi.org/project/matplotlib/) (>= 3.6.2)
 - [scikit-learn](https://pypi.org/project/scikit-learn/) (>= 1.2.2)
-- [graphviz](https://pypi.org/project/graphviz/) (>= 0.20.1)
 
 ## Installation
 
@@ -99,14 +98,6 @@ Overfitting becomes apparent as the decision tree gets deeper because prediction
 Pre-and-post-pruning techniques are some solutions to reduce the likelihood of an overfitted decision tree. Pre-pruning techniques introduce early stopping criteria *(e.g., depth, number of samples)*. One may resort to validation methodologies *(e.g., k-fold Cross-Validation)* in both pruning techniques.
 
 The figure below depicts various decision boundaries for different values of the `max_depth` hyperparameter. We used the *iris* dataset provided by *scikit-learn* as it gives a base analysis for our (parallel) decision tree implementation. The figure demonstrates how noisy instances may negatively impact the performance of the decision tree model.
-
-![dt_noise](https://raw.githubusercontent.com/ben-my-to/mpitree/main/images/dt_noise.png)
-
-## Unit Tests
-
-```bash
-pytest --doctest-modules
-```
 
 ## Contributing
 

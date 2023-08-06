@@ -48,23 +48,11 @@ class DecisionNode:
         `state`.
 
     n_samples : int, init=False
-        The number of instances in the dataset `state`.
+        The number of training instances in the partitioned region.
 
     classes : np.ndarray
         Add Description Here.
-
-    Notes
-    -----
-    .. note::
-        The `threshold` attribute is initialized upon the split of a
-        numerical feature.
-
-        The `branch` attribute is assigned a value from the set of unique
-        feature values for *categorical* features and `["True" | "False"]`
-        for *numerical* features.
     """
-
-    _estimator_type = ClassVar[str]
 
     feature: Union[str, float] = None
     threshold: Optional[float] = None
@@ -82,7 +70,7 @@ class DecisionNode:
     def __post_init__(self):
         # TODO: refactor -> {0: 2, 2: 1} -> [2, 0, 1]
         n_class_dist = dict(zip(*np.unique(self.target, return_counts=True)))
-        self.value = np.array([n_class_dist.get(k, 0) for k in self.classes])
+        self.value = np.array([n_class_dist.get(t, 0) for t in self.classes])
 
         self.n_samples = len(self.target)
 
@@ -112,45 +100,11 @@ class DecisionNode:
 
         info = self.feature
 
-        if self.is_leaf and self._estimator_type == "classifier":
-            info = f"class: {self.feature}"
-        if self.is_leaf and self._estimator_type == "regressor":
-            info = f"target: {self.feature}"
-
-        if not self.parent:
+        if not self.depth:
             # NOTE: the root node could be a leaf node.
             return f"{spacing} {info}"
 
-        if self.parent.threshold:
-            # NOTE: Numpy cannot have mix types so numerical value are
-            # type-casted to ``class <str>``.
-            if self.branch == "True":
-                branch = f"<= {float(self.parent.threshold):.2f}"
-            else:
-                branch = f"> {float(self.parent.threshold):.2f}"
-        else:
-            branch = self.branch  # for categorical features
-
-        return f"{spacing} {info} [{branch}]"
-
-    def __getitem__(self, other: str | float) -> DecisionNode:
-        """Short Summary
-
-        Extended Summary
-
-        Parameters
-        ----------
-        other : str or float
-
-        Returns
-        -------
-        DecisionNode
-        """
-        if self.threshold is not None:
-            branch = ("True", "False")[other <= self.threshold]
-        else:
-            branch = other
-        return self.children[branch]
+        return f"{spacing} {info} [{self.branch} {self.parent.threshold:.2f}]"
 
     @property
     def is_leaf(self):
@@ -172,3 +126,11 @@ class DecisionNode:
         at least one child.
         """
         return not self.children
+
+    @property
+    def left(self):
+        return self.children["<="]
+
+    @property
+    def right(self):
+        return self.children[">"]
