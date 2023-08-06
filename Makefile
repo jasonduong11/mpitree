@@ -1,6 +1,5 @@
-SHELL = /bin/bash
 VENV = env
-PYTHON = $(VENV)/bin/python
+PYTHON = $(VENV)/bin/python3
 
 install: requirements.txt
 	python3 -m venv $(VENV)

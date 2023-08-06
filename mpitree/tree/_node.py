@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import ClassVar, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 
@@ -21,8 +21,7 @@ class DecisionNode:
         The descriptive or target feature value.
 
     threshold : float, default=None
-        The default is `None`, which implies the split feature is
-        categorical).
+        Add Description Here.
 
     branch : str, default=None
         The feature value of a split from the parent node.
@@ -38,20 +37,9 @@ class DecisionNode:
     children : dict, default={}
         The nodes on each split of the parent node.
 
-    target: np.ndarray
+    target: array-like
         1D dataset array with shape (n_samples,) of either categorical or
         numerical values.
-
-    value : np.ndarray, init=False
-        1D array with shape (n_classes,) of categorical (classification)
-        values containing the number of instances for each classes in
-        `state`.
-
-    n_samples : int, init=False
-        The number of training instances in the partitioned region.
-
-    classes : np.ndarray
-        Add Description Here.
     """
 
     feature: Union[str, float] = None
@@ -61,20 +49,9 @@ class DecisionNode:
     parent: Optional[DecisionNode] = field(default=None, repr=False)
     children: dict = field(default_factory=dict, repr=False)
     target: np.ndarray = field(default_factory=list, repr=False)
-    value: np.ndarray = field(init=False)
-    n_samples: int = field(init=False)
-
-    # NOTE: contingent to future changes
-    classes: np.ndarray = field(default_factory=list, repr=False)
 
     def __post_init__(self):
-        # TODO: refactor -> {0: 2, 2: 1} -> [2, 0, 1]
-        n_class_dist = dict(zip(*np.unique(self.target, return_counts=True)))
-        self.value = np.array([n_class_dist.get(t, 0) for t in self.classes])
-
-        self.n_samples = len(self.target)
-
-        if self.parent is not None:
+        if self.parent is not None:  # NOTE: root node default to 0
             self.depth = self.parent.depth + 1
 
     def __str__(self):
@@ -84,9 +61,7 @@ class DecisionNode:
         specified for root, internal, and leaf decision nodes and is
         followed by their corresponding feature or target value. Each
         internal and leaf decision node displays a unique branch respective
-        of the parent split node. For leaf decision nodes, the target value
-        is additionally prefixed by either "class" or "target" depending on
-        the task (i.e., classification or regression).
+        of the parent split node.
 
         Returns
         -------
@@ -98,13 +73,20 @@ class DecisionNode:
             "└──" if self.is_leaf else "├──" if self.depth else "┌──"
         )
 
-        info = self.feature
+        root_fmt = "{spacing} {feature}"
+        interior_fmt = "{spacing} {feature} [{sign} {threshold}]"
 
-        if not self.depth:
-            # NOTE: the root node could be a leaf node.
-            return f"{spacing} {info}"
+        feature_name = str(self.feature) if self.is_leaf else f"feature_{self.feature}"
 
-        return f"{spacing} {info} [{self.branch} {self.parent.threshold:.2f}]"
+        if not self.depth:  # NOTE: the root node could be a leaf node.
+            return root_fmt.format(spacing=spacing, feature=feature_name)
+
+        return interior_fmt.format(
+            spacing=spacing,
+            feature=feature_name,
+            sign=self.branch,
+            threshold=round(self.parent.threshold, 2),
+        )
 
     @property
     def is_leaf(self):
@@ -117,13 +99,6 @@ class DecisionNode:
         Returns
         -------
         bool
-
-        Notes
-        -----
-        The function is well-defined for all `DecisionNode` along a
-        fully constructed decision path as the algorithm backtracks
-        on a leaf decision node and each internal decision node has
-        at least one child.
         """
         return not self.children
 
