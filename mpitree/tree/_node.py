@@ -57,12 +57,6 @@ class DecisionNode:
     def __str__(self):
         """Export a string-formatted decision node.
 
-        Each decision node is prefixed by one of three branch types
-        specified for root, internal, and leaf decision nodes and is
-        followed by their corresponding feature or target value. Each
-        internal and leaf decision node displays a unique branch respective
-        of the parent split node.
-
         Returns
         -------
         str
@@ -92,9 +86,7 @@ class DecisionNode:
     def is_leaf(self):
         """Return whether a node is terminal.
 
-        A `DecisionNode` object is a leaf if it contains no children, and
-        will return true; otherwise, the `DecisionNode` is considered an
-        internal and will return false.
+        A decision node is a leaf node if it contains no children.
 
         Returns
         -------

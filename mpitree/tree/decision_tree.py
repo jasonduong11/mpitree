@@ -150,9 +150,9 @@ class BaseDecisionTree(BaseEstimator, metaclass=ABCMeta):
     @abstractmethod
     def _make_tree(
         self,
-        *,
         X: np.ndarray,
         y: np.ndarray,
+        *,
         parent: DecisionNode,
         branch: str | float,
         depth: int,
@@ -348,8 +348,8 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
 
         for X, y, branch in n_subtrees:
             subtree = self._make_tree(
-                X=X,
-                y=y,
+                X,
+                y,
                 parent=split_node,
                 branch=branch,
                 depth=depth + 1,
@@ -413,7 +413,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         key, color = divmod(rank, n_block)
         return comm.Split(color, key)
 
-    def _make_tree(self, *, X, y, parent=None, branch=None, depth=0, comm=WORLD_COMM):
+    def _make_tree(self, X, y, *, parent=None, branch=None, depth=0, comm=WORLD_COMM):
         """Short Summary
 
         Extended Summary
@@ -479,13 +479,15 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         assert all(i.size for i in np.split_mask(X, mask))
         assert all(i.size for i in np.split_mask(y, mask))
 
-        n_subtrees = zip(np.split_mask(X, mask), np.split_mask(y, mask), ("<=", ">"))
+        n_subtrees = list(
+            zip(np.split_mask(X, mask), np.split_mask(y, mask), ("<=", ">"))
+        )
 
         if size == 1:
             for X, y, branch in n_subtrees:
                 subtree = self._make_tree(
-                    X=X,
-                    y=y,
+                    X,
+                    y,
                     parent=split_node,
                     branch=branch,
                     depth=depth + 1,
@@ -493,7 +495,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
                 )
                 split_node.children[branch] = subtree
         else:
-            group = self.Get_cyclic_dist(comm, 2)
+            group = self.Get_cyclic_dist(comm, n_block=2)
 
             level = rank % 2
             X, y, branch = n_subtrees[level]
@@ -501,8 +503,8 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
             levels = comm.allgather(
                 {
                     branch: self._make_tree(
-                        X=X,
-                        y=y,
+                        X,
+                        y,
                         parent=split_node,
                         branch=branch,
                         depth=depth + 1,
