@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
-import numpy as np
+from numpy.typing import ArrayLike
 
 
 @dataclass(kw_only=True)
@@ -17,13 +17,13 @@ class DecisionNode:
 
     Parameters
     ----------
-    feature : str or float, default=None
+    value: str or float
         The descriptive or target feature value.
 
-    threshold : float, default=None
+    threshold : float, optional
         Add Description Here.
 
-    branch : str, default=None
+    branch : str, optional
         The feature value of a split from the parent node.
 
     depth : int, default=0
@@ -42,16 +42,16 @@ class DecisionNode:
         numerical values.
     """
 
-    feature: Union[str, float] = None
+    value: Union[str, float]
     threshold: Optional[float] = None
-    branch: str = None
+    branch: Optional[str] = None
     depth: int = field(default_factory=int)
     parent: Optional[DecisionNode] = field(default=None, repr=False)
     children: dict = field(default_factory=dict, repr=False)
-    target: np.ndarray = field(default_factory=list, repr=False)
+    target: Optional[ArrayLike] = field(default_factory=None, repr=False)
 
     def __post_init__(self):
-        if self.parent is not None:  # NOTE: root node default to 0
+        if self.parent is not None:
             self.depth = self.parent.depth + 1
 
     def __str__(self):
@@ -67,17 +67,17 @@ class DecisionNode:
             "└──" if self.is_leaf else "├──" if self.depth else "┌──"
         )
 
-        root_fmt = "{spacing} {feature}"
-        interior_fmt = "{spacing} {feature} [{sign} {threshold}]"
+        root_fmt = "{spacing} {value}"
+        interior_fmt = "{spacing} {value} [{sign} {threshold}]"
 
-        feature_name = str(self.feature) if self.is_leaf else f"feature_{self.feature}"
+        feature_name = str(self.value) if self.is_leaf else f"feature_{self.value}"
 
         if not self.depth:  # NOTE: the root node could be a leaf node.
-            return root_fmt.format(spacing=spacing, feature=feature_name)
+            return root_fmt.format(spacing=spacing, value=feature_name)
 
         return interior_fmt.format(
             spacing=spacing,
-            feature=feature_name,
+            value=feature_name,
             sign=self.branch,
             threshold=round(self.parent.threshold, 2),
         )
@@ -93,11 +93,3 @@ class DecisionNode:
         bool
         """
         return not self.children
-
-    @property
-    def left(self):
-        return self.children["<="]
-
-    @property
-    def right(self):
-        return self.children[">"]
