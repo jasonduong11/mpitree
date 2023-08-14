@@ -170,7 +170,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         X, y = check_X_y(X, y, dtype=object)
 
         self.classes_ = np.unique(y)
-        self.n_thresholds_ = dict()
+        self.n_features_ = range(X.shape[1])
 
         self.tree_ = self._make_tree(X, y)
         return self
@@ -233,12 +233,12 @@ class DecisionTreeClassifier(BaseDecisionTree):
 
         costs = [cond_entropy(t) for t in thresholds]
 
-        self.n_thresholds_[feature_idx] = thresholds[np.argmin(costs)]
-        max_gain = self._entropy(y) - min(costs)
+        return (
+            self._entropy(y) - min(costs),
+            thresholds[np.argmin(costs)],
+        )
 
-        return max_gain
-
-    def _make_tree(self, X, y, *, parent=None, branch=None, depth=0):
+    def _make_tree(self, X, y, *, parent=None, level=None, depth=0):
         """Short Summary
 
         Extended Summary
@@ -253,7 +253,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
 
         parent : DecisionTreeClassifier, default=None
 
-        branch : str, default=None
+        level: str, default=None
 
         depth : int, default=0
 
@@ -267,51 +267,47 @@ class DecisionTreeClassifier(BaseDecisionTree):
                 DecisionNode(
                     value=value,
                     threshold=threshold,
-                    branch=branch,
+                    level=level,
                     parent=parent,
                     target=y,
                 )
             )
 
-        if len(np.unique(y)) == 1:
-            return make_node(mode(y))
-        if not X.size:
-            return make_node(mode(parent.target))
-        if np.all(X == X[0]):
-            return make_node(mode(y))
-        if self.max_depth is not None and self.max_depth == depth:
-            return make_node(mode(y))
-        if self.min_samples_split > len(X):
+        if (
+            len(np.unique(y)) == 1
+            or np.all(X == X[0])
+            or self.max_depth is not None
+            and self.max_depth == depth
+            or self.min_samples_split > len(X)
+        ):
             return make_node(mode(y))
 
-        feature_importances = [
-            self._compute_information_gain(X, y, feature_idx)
-            for feature_idx in range(X.shape[1])
-        ]
-
-        split_feature = np.argmax(feature_importances)
-        split_node = make_node(
-            value=split_feature, threshold=self.n_thresholds_[split_feature]
+        gains, thresholds = zip(
+            *[self._compute_information_gain(X, y, i) for i in self.n_features_]
         )
 
-        mask = X[:, split_feature] <= split_node.threshold
+        if (gains[0] and gains[1]) == 0.0:
+            return make_node(mode(y))
 
+        split_feature = np.argmax(gains)
+        split_node = make_node(value=split_feature, threshold=thresholds[split_feature])
+
+        mask = X[:, split_feature] <= split_node.threshold
         left_region, right_region = [X[mask], y[mask]], [X[~mask], y[~mask]]
 
-        assert all(i.size for i in left_region)
-        assert all(i.size for i in right_region)
+        assert len(X[mask]) != len(X) and X[mask].size
+        assert len(X[~mask]) != len(X) and X[~mask].size
 
-        n_subtrees = [left_region + ["<="], right_region + [">"]]
+        subtrees = [left_region + ["<="], right_region + [">"]]
 
-        for X, y, branch in n_subtrees:
-            subtree = self._make_tree(
+        for X, y, level in subtrees:
+            split_node.children[level] = self._make_tree(
                 X,
                 y,
                 parent=split_node,
-                branch=branch,
+                level=level,
                 depth=depth + 1,
             )
-            split_node.children[branch] = subtree
 
         return split_node
 
@@ -334,7 +330,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         float
         """
         check_is_fitted(self)
-        X, y = check_X_y(X, y, dtype=object)
+        X, y = check_ggX_y(X, y, dtype=object)
 
         y_pred = self.predict(X)
         return accuracy_score(y, y_pred)
@@ -370,7 +366,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         key, color = divmod(rank, n_block)
         return comm.Split(color, key)
 
-    def _make_tree(self, X, y, *, parent=None, branch=None, depth=0, comm=WORLD_COMM):
+    def _make_tree(self, X, y, *, parent=None, level=None, depth=0, comm=WORLD_COMM):
         """Short Summary
 
         Extended Summary
@@ -385,7 +381,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
 
         parent : DecisionNode, default=None
 
-        branch : str, default=None
+        level: str, default=None
 
         depth : int, default=0
 
@@ -401,7 +397,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
                 DecisionNode(
                     value=value,
                     threshold=threshold,
-                    branch=branch,
+                    level=level,
                     parent=parent,
                     target=y,
                 )
@@ -410,60 +406,57 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         rank = comm.Get_rank()
         size = comm.Get_size()
 
-        if len(np.unique(y)) == 1:
-            return make_node(mode(y))
-        if not X.size:
-            return make_node(mode(parent.target))
-        if np.all(X == X[0]):
-            return make_node(mode(y))
-        if self.max_depth is not None and self.max_depth == depth:
-            return make_node(mode(y))
-        if self.min_samples_split > len(X):
+        if (
+            len(np.unique(y)) == 1
+            or np.all(X == X[0])
+            or self.max_depth is not None
+            and self.max_depth == depth
+            or self.min_samples_split > len(X)
+        ):
             return make_node(mode(y))
 
-        feature_importances = [
-            self._compute_information_gain(X, y, feature_idx)
-            for feature_idx in range(X.shape[1])
-        ]
-
-        split_feature = np.argmax(feature_importances)
-        split_node = make_node(
-            value=split_feature, threshold=self.n_thresholds_[split_feature]
+        gains, thresholds = zip(
+            *[self._compute_information_gain(X, y, i) for i in self.n_features_]
         )
 
-        mask = X[:, split_feature] <= split_node.threshold
+        if (gains[0] and gains[1]) == 0.0:
+            return make_node(mode(y))
 
+        split_feature = np.argmax(gains)
+        split_node = make_node(value=split_feature, threshold=thresholds[split_feature])
+
+        mask = X[:, split_feature] <= split_node.threshold
         left_region, right_region = [X[mask], y[mask]], [X[~mask], y[~mask]]
 
-        assert all(i.size for i in left_region)
-        assert all(i.size for i in right_region)
+        assert len(X[mask]) != len(X) and X[mask].size
+        assert len(X[~mask]) != len(X) and X[~mask].size
 
-        n_subtrees = [left_region + ["<="], right_region + [">"]]
+        subtrees = [left_region + ["<="], right_region + [">"]]
 
         if size == 1:
-            for X, y, branch in n_subtrees:
+            for X, y, level in subtrees:
                 subtree = self._make_tree(
                     X,
                     y,
                     parent=split_node,
-                    branch=branch,
+                    level=level,
                     depth=depth + 1,
                     comm=comm,
                 )
-                split_node.children[branch] = subtree
+                split_node.children[level] = subtree
         else:
             group = self.Get_cyclic_dist(comm, n_block=2)
 
-            level = rank % 2
-            X, y, branch = n_subtrees[level]
+            branch = rank % 2
+            X, y, level = subtrees[branch]
 
             levels = comm.allgather(
                 {
-                    branch: self._make_tree(
+                    level: self._make_tree(
                         X,
                         y,
                         parent=split_node,
-                        branch=branch,
+                        level=level,
                         depth=depth + 1,
                         comm=group,
                     )
@@ -471,8 +464,8 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
             )
 
             for level in levels:
-                for branch, tree_node in level.items():
-                    split_node.children[branch] = tree_node
+                for level, subtree in level.items():
+                    split_node.children[level] = subtree
 
             group.Free()
 

@@ -23,7 +23,7 @@ class DecisionNode:
     threshold : float, optional
         Add Description Here.
 
-    branch : str, optional
+    level : str, optional
         The feature value of a split from the parent node.
 
     depth : int, default=0
@@ -44,7 +44,7 @@ class DecisionNode:
 
     value: Union[str, float]
     threshold: Optional[float] = None
-    branch: Optional[str] = None
+    level: Optional[str] = None
     depth: int = field(default_factory=int)
     parent: Optional[DecisionNode] = field(default=None, repr=False)
     children: dict = field(default_factory=dict, repr=False)
@@ -67,18 +67,20 @@ class DecisionNode:
             "└──" if self.is_leaf else "├──" if self.depth else "┌──"
         )
 
-        root_fmt = "{spacing} {value}"
-        interior_fmt = "{spacing} {value} [{sign} {threshold}]"
+        root_tmp = "{spacing} {value}"
+        interior_tmp = "{spacing} {value} [{sign} {threshold}]"
 
-        feature_name = str(self.value) if self.is_leaf else f"feature_{self.value}"
+        feature_name = (
+            f"class: {self.value}" if self.is_leaf else f"feature_{self.value}"
+        )
 
-        if not self.depth:  # NOTE: the root node could be a leaf node.
-            return root_fmt.format(spacing=spacing, value=feature_name)
+        if not self.depth:
+            return root_tmp.format(spacing=spacing, value=feature_name)
 
-        return interior_fmt.format(
+        return interior_tmp.format(
             spacing=spacing,
             value=feature_name,
-            sign=self.branch,
+            sign=self.level,
             threshold=round(self.parent.threshold, 2),
         )
 

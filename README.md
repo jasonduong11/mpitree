@@ -32,7 +32,7 @@ A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 </tr>
 </table>
 
-The Parallel Decision Tree algorithm schedules processes in a cyclic distribution approximately evenly across levels of a split feature. Processes in each distribution independently participate among themselves at their respective levels and waits at their original *(parent)* communicator all other processes in that communicator. For every interior decision tree node created, a sub-communicator, $m$, is constructed, and each thread per process, using the `ThreadPool` construct, concurrently calculates the best feature to split *(i.e., the feature that maximizes the information gain)*. Let $n$ be the total number of processes and $p$ be the number of levels. Then, each distribution $m$ at some level $p$ contains at most $\lceil n/p \rceil$ processes, and only one distribution has $\lfloor n/p \rfloor$ processes where $n \nmid p$. Therefore, each process's rank $r$ is assigned to the sub-communicator $m = r \mod p$ and is assigned a unique rank in that group $r_m = \lfloor r/p \rfloor$.
+The Parallel Decision Tree algorithm schedules processes in a cyclic distribution approximately evenly across levels of a split feature. Processes in each distribution independently participate among themselves at their respective levels and waits at their original *(parent)* communicator all other processes in that communicator. For every interior decision tree node created, a sub-communicator, $m$, is constructed, and each process per communicator concurrently participates in the calculation of the best feature to split *(i.e., the feature that maximizes the information gain)*. Let $n$ be the total number of processes and $p$ be the number of levels. Then, each distribution $m$ at some level $p$ contains at most $\lceil n/p \rceil$ processes, and only one distribution has $\lfloor n/p \rfloor$ processes where $n \nmid p$. Therefore, each process's rank $r$ is assigned to the sub-communicator $m = r \mod p$ and is assigned a unique rank in that group $r_m = \lfloor r/p \rfloor$.
 
 A terminated routine call results in a sub-tree on a particular path from the root, and the *local* communicator is de-allocated. The algorithm terminates when all sub-trees are recursively gathered to the root process.
 
@@ -56,38 +56,80 @@ cd mpitree && make install
 
 ```python
 from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split
+from mpitree.tree import ParallelDecisionTreeClassifier
 
-from mpitree.decision_tree import ParallelDecisionTreeClassifier, WORLD_RANK
+iris = load_iris()
+X, y = iris.data[:, :2], iris.target
 
-iris = load_iris(as_frame=True)
+clf = ParallelDecisionTreeClassifier(max_depth=11).fit(X, y)
 
-X_train, X_test, y_train, y_test = train_test_split(
-    iris.data, iris.target, test_size=0.20, random_state=42
-)
-
-# Concurrently train a decision tree classifier of `max_depth` 2 among all processes
-clf = ParallelDecisionTreeClassifier(criterion={"max_depth": 2})
-clf.fit(X_train, y_train)
-
-# Evaluate the performance (e.g., accuracy) of the decision tree classifier
-train_score, test_score = clf.score(X_train, y_train), clf.score(X_test, y_test)
-
-if not WORLD_RANK:
+if not clf.WORLD_RANK:
     print(clf)
-    print(f"Train/Test Accuracy: ({train_score:.2%}, {test_score:.2%})")
 ```
 
-### Executing `iris.py` with 5 processes
+### Executing `example.py` with 5 processes
 
 ```bash
-$ mpirun -n 5 python3 iris.py
-┌── petal length (cm)
-│  └── 0 [< 2.45]
-│  ├── petal length (cm) [>= 2.45]
-│  │  └── 1 [< 4.75]
-│  │  └── 2 [>= 4.75]
-Train/Test Accuracy: (95.00%, 96.67%)
+$ mpirun -n 10 python3 example.py
+┌── feature_0
+│  ├── feature_1 [> 5.5]
+│  │  ├── feature_0 [> 3.4]
+│  │  │  └── class: 2 [> 6.5]
+│  │  │  └── class: 0 [<= 6.5]
+│  │  ├── feature_0 [<= 3.4]
+│  │  │  ├── feature_0 [> 6.2]
+│  │  │  │  ├── feature_0 [<= 7.05]
+│  │  │  │  │  ├── feature_1 [<= 6.9]
+│  │  │  │  │  │  ├── feature_0 [> 2.4]
+│  │  │  │  │  │  │  ├── feature_1 [> 6.5]
+│  │  │  │  │  │  │  │  ├── feature_1 [<= 3.1]
+│  │  │  │  │  │  │  │  │  ├── feature_0 [> 2.65]
+│  │  │  │  │  │  │  │  │  │  ├── feature_1 [> 6.7]
+│  │  │  │  │  │  │  │  │  │  │  └── class: 2 [> 2.9]
+│  │  │  │  │  │  │  │  │  │  │  └── class: 1 [<= 2.9]
+│  │  │  │  │  │  │  │  │  │  └── class: 1 [<= 6.7]
+│  │  │  │  │  │  │  │  │  └── class: 2 [<= 2.65]
+│  │  │  │  │  │  │  │  └── class: 2 [> 3.1]
+│  │  │  │  │  │  │  ├── feature_1 [<= 6.5]
+│  │  │  │  │  │  │  │  ├── feature_1 [> 2.5]
+│  │  │  │  │  │  │  │  │  ├── feature_1 [> 2.75]
+│  │  │  │  │  │  │  │  │  │  ├── feature_1 [<= 3.3]
+│  │  │  │  │  │  │  │  │  │  │  └── class: 2 [> 3.15]
+│  │  │  │  │  │  │  │  │  │  │  └── class: 2 [<= 3.15]
+│  │  │  │  │  │  │  │  │  │  └── class: 2 [> 3.3]
+│  │  │  │  │  │  │  │  │  └── class: 2 [<= 2.75]
+│  │  │  │  │  │  │  │  └── class: 1 [<= 2.5]
+│  │  │  │  │  │  └── class: 1 [<= 2.4]
+│  │  │  │  │  └── class: 1 [> 6.9]
+│  │  │  │  └── class: 2 [> 7.05]
+│  │  │  ├── feature_0 [<= 6.2]
+│  │  │  │  ├── feature_1 [> 5.7]
+│  │  │  │  │  ├── feature_0 [> 2.95]
+│  │  │  │  │  │  ├── feature_1 [<= 6.1]
+│  │  │  │  │  │  │  └── class: 1 [> 3.0]
+│  │  │  │  │  │  │  └── class: 2 [<= 3.0]
+│  │  │  │  │  │  └── class: 2 [> 6.1]
+│  │  │  │  │  ├── feature_1 [<= 2.95]
+│  │  │  │  │  │  ├── feature_0 [<= 2.8]
+│  │  │  │  │  │  │  ├── feature_1 [> 5.8]
+│  │  │  │  │  │  │  │  ├── feature_0 [<= 2.65]
+│  │  │  │  │  │  │  │  │  ├── feature_0 [<= 6.15]
+│  │  │  │  │  │  │  │  │  │  └── class: 2 [> 6.0]
+│  │  │  │  │  │  │  │  │  │  └── class: 1 [<= 6.0]
+│  │  │  │  │  │  │  │  │  └── class: 1 [> 6.15]
+│  │  │  │  │  │  │  │  └── class: 1 [> 2.65]
+│  │  │  │  │  │  │  └── class: 1 [<= 5.8]
+│  │  │  │  │  │  └── class: 1 [> 2.8]
+│  │  │  │  └── class: 1 [<= 5.7]
+│  ├── feature_1 [<= 5.5]
+│  │  ├── feature_1 [> 2.8]
+│  │  │  └── class: 0 [> 3.0]
+│  │  │  └── class: 0 [<= 3.0]
+│  │  ├── feature_0 [<= 2.8]
+│  │  │  ├── feature_0 [<= 4.9]
+│  │  │  │  └── class: 1 [> 4.7]
+│  │  │  │  └── class: 0 [<= 4.7]
+│  │  │  └── class: 1 [> 4.9]
 ```
 
 ### Decision Boundaries varying values for the `max_depth` hyperparameter
