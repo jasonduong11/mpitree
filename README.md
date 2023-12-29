@@ -53,7 +53,7 @@ git clone https://github.com/ben-my-to/mpitree.git
 cd mpitree && make install
 ```
 
-### Example using `iris.py` with 2 processers
+## Example using `iris.py` with 2 processers
 
 ```bash
 $ mpirun -n 2 python3 iris.py
@@ -73,7 +73,7 @@ Train/Test Accuracy: (75.00%, 63.33%)
 Time: 0.0338 secs
 ```
 
-### Decision Boundaries varying values for the `max_depth` hyperparameter
+## Decision Boundaries varying values for the `max_depth` hyperparameter
 
 Overfitting becomes apparent as the decision tree gets deeper because predictions are based on smaller and smaller cuboidal regions of the feature space. In a sense, the decision tree model is biasing towards *singleton* nodes; and, therefore, may cause mispredictions in the likelihood of noisy data.
 

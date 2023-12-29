@@ -11,8 +11,8 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 start_time = MPI.Wtime()
 
-# Concurrently train a decision tree classifier of `max_depth` 3 among all processes
-clf = pdt(max_depth=3).fit(X_train, y_train)
+# Concurrently train a decision tree classifier among all processes
+clf = pdt().fit(X_train, y_train)
 
 # Evaluate the performance (e.g., accuracy) of the decision tree classifier
 train_score, test_score = clf.score(X_train, y_train), clf.score(X_test, y_test)
