@@ -10,7 +10,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
-from ._node import DecisionNode
+from ._node import Node
 
 
 class BaseDecisionTree(metaclass=ABCMeta):
@@ -37,7 +37,7 @@ class BaseDecisionTree(metaclass=ABCMeta):
         """Export a text-based visualization of a decision tree estimator.
 
         The function is a wrapper function for the overloaded `iter`
-        method that displays each string-formatted `DecisionNode` in a
+        method that displays each string-formatted `Node` in a
         decision tree estimator.
 
         Returns
@@ -56,7 +56,7 @@ class BaseDecisionTree(metaclass=ABCMeta):
 
         Yields
         ------
-        DecisionNode
+        Node
 
         Notes
         -----
@@ -76,9 +76,11 @@ class BaseDecisionTree(metaclass=ABCMeta):
         while frontier:
             tree_node = frontier.pop()
             yield tree_node
-            frontier.extend(
-                sorted(tree_node.children.values(), key=lambda n: not n.is_leaf)
+
+            children = filter(
+                lambda n: n is not None, (tree_node.left, tree_node.right)
             )
+            frontier.extend(sorted(children, key=lambda n: not n.is_leaf))
 
     def _decision_paths(self, X):
         """Short Summary
@@ -98,7 +100,7 @@ class BaseDecisionTree(metaclass=ABCMeta):
         check_is_fitted(self)
         X = check_array(X, dtype=object)
 
-        def tree_walk(query) -> DecisionNode:
+        def tree_walk(query) -> Node:
             """Traverse a decision tree estimator from root to some leaf node.
 
             Decision nodes are queried based on the respective feature value
@@ -111,19 +113,22 @@ class BaseDecisionTree(metaclass=ABCMeta):
 
             Returns
             -------
-            DecisionNode
+            Node
             """
             tree_node = self.tree_
 
             while not tree_node.is_leaf:
                 if query[tree_node.value] <= tree_node.threshold:
-                    tree_node = tree_node.children["<="]
+                    tree_node = tree_node.left
                 else:
-                    tree_node = tree_node.children[">"]
+                    tree_node = tree_node.right
 
             return tree_node
 
         return np.apply_along_axis(tree_walk, axis=1, arr=X)
+
+    def export_graphviz(self):
+        ...
 
     def predict(self, X):
         """Return the predicated leaf decision node.
@@ -215,14 +220,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         -------
         max_gain : The maximum information gain value.
         """
-
-        order = np.argsort(X[:, feature_idx])
-        X_sorted, y_sorted = X[order], y[order]
-
-        thresholds = [
-            np.mean(X_sorted[i : i + 2, feature_idx])
-            for i in np.where(np.diff(y_sorted) != 0)[0]
-        ]
+        possible_thresholds = np.unique(X[:, feature_idx])
 
         def cond_entropy(t):
             mask = X[:, feature_idx] <= t
@@ -231,11 +229,11 @@ class DecisionTreeClassifier(BaseDecisionTree):
             impurity = np.array([self._entropy(y[mask]), self._entropy(y[~mask])])
             return weights @ impurity
 
-        costs = [cond_entropy(t) for t in thresholds]
+        costs = [cond_entropy(t) for t in possible_thresholds]
 
         return (
             self._entropy(y) - min(costs),
-            thresholds[np.argmin(costs)],
+            possible_thresholds[np.argmin(costs)],
         )
 
     def _make_tree(self, X, y, *, parent=None, level=None, depth=0):
@@ -259,25 +257,21 @@ class DecisionTreeClassifier(BaseDecisionTree):
 
         Returns
         -------
-        DecisionNode
+        Node
         """
 
         def make_node(value, threshold=None):
-            return deepcopy(
-                DecisionNode(
-                    value=value,
-                    threshold=threshold,
-                    level=level,
-                    parent=parent,
-                    target=y,
-                )
+            return Node(
+                value=value,
+                threshold=threshold,
+                level=level,
+                parent=parent,
             )
 
         if (
             len(np.unique(y)) == 1
             or np.all(X == X[0])
-            or self.max_depth is not None
-            and self.max_depth == depth
+            or (self.max_depth is not None and self.max_depth == depth)
             or self.min_samples_split > len(X)
         ):
             return make_node(mode(y))
@@ -286,28 +280,28 @@ class DecisionTreeClassifier(BaseDecisionTree):
             *[self._compute_information_gain(X, y, i) for i in self.n_features_]
         )
 
-        if (gains[0] and gains[1]) == 0.0:
-            return make_node(mode(y))
+        split_feature_idx = np.argmax(gains)
+        split_node = make_node(
+            value=split_feature_idx, threshold=thresholds[split_feature_idx]
+        )
 
-        split_feature = np.argmax(gains)
-        split_node = make_node(value=split_feature, threshold=thresholds[split_feature])
+        mask = X[:, split_feature_idx] <= split_node.threshold
 
-        mask = X[:, split_feature] <= split_node.threshold
-        left_region, right_region = [X[mask], y[mask]], [X[~mask], y[~mask]]
+        split_node.left = self._make_tree(
+            X[mask],
+            y[mask],
+            parent=split_node,
+            level="<=",
+            depth=depth + 1,
+        )
 
-        assert len(X[mask]) != len(X) and X[mask].size
-        assert len(X[~mask]) != len(X) and X[~mask].size
-
-        subtrees = [left_region + ["<="], right_region + [">"]]
-
-        for X, y, level in subtrees:
-            split_node.children[level] = self._make_tree(
-                X,
-                y,
-                parent=split_node,
-                level=level,
-                depth=depth + 1,
-            )
+        split_node.right = self._make_tree(
+            X[~mask],
+            y[~mask],
+            parent=split_node,
+            level=">",
+            depth=depth + 1,
+        )
 
         return split_node
 
@@ -330,7 +324,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         float
         """
         check_is_fitted(self)
-        X, y = check_ggX_y(X, y, dtype=object)
+        X, y = check_X_y(X, y, dtype=object)
 
         y_pred = self.predict(X)
         return accuracy_score(y, y_pred)
@@ -379,7 +373,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         y : array-like
             1D target array with shape (n_samples,) of numerical values.
 
-        parent : DecisionNode, default=None
+        parent : Node, default=None
 
         level: str, default=None
 
@@ -389,17 +383,16 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
 
         Returns
         -------
-        DecisionNode
+        Node
         """
 
         def make_node(value, threshold=None):
             return deepcopy(
-                DecisionNode(
+                Node(
                     value=value,
                     threshold=threshold,
                     level=level,
                     parent=parent,
-                    target=y,
                 )
             )
 
@@ -419,36 +412,40 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
             *[self._compute_information_gain(X, y, i) for i in self.n_features_]
         )
 
-        if (gains[0] and gains[1]) == 0.0:
-            return make_node(mode(y))
+        split_feature_idx = np.argmax(gains)
+        split_node = make_node(
+            value=split_feature_idx, threshold=thresholds[split_feature_idx]
+        )
 
-        split_feature = np.argmax(gains)
-        split_node = make_node(value=split_feature, threshold=thresholds[split_feature])
-
-        mask = X[:, split_feature] <= split_node.threshold
-        left_region, right_region = [X[mask], y[mask]], [X[~mask], y[~mask]]
-
-        assert len(X[mask]) != len(X) and X[mask].size
-        assert len(X[~mask]) != len(X) and X[~mask].size
-
-        subtrees = [left_region + ["<="], right_region + [">"]]
+        mask = X[:, split_feature_idx] <= split_node.threshold
 
         if size == 1:
-            for X, y, level in subtrees:
-                subtree = self._make_tree(
-                    X,
-                    y,
-                    parent=split_node,
-                    level=level,
-                    depth=depth + 1,
-                    comm=comm,
-                )
-                split_node.children[level] = subtree
+            split_node.left = self._make_tree(
+                X[mask],
+                y[mask],
+                parent=split_node,
+                level="<=",
+                depth=depth + 1,
+                comm=comm,
+            )
+
+            split_node.right = self._make_tree(
+                X[~mask],
+                y[~mask],
+                parent=split_node,
+                level=">",
+                depth=depth + 1,
+                comm=comm,
+            )
         else:
             group = self.Get_cyclic_dist(comm, n_block=2)
 
-            branch = rank % 2
-            X, y, level = subtrees[branch]
+            if rank % 2 == 0:
+                X, y = X[mask], y[mask]
+                level = "<="
+            else:
+                X, y = X[~mask], y[~mask]
+                level = ">"
 
             levels = comm.allgather(
                 {
@@ -465,7 +462,10 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
 
             for level in levels:
                 for level, subtree in level.items():
-                    split_node.children[level] = subtree
+                    if level == "<=":
+                        split_node.left = subtree
+                    elif level == ">":
+                        split_node.right = subtree
 
             group.Free()
 

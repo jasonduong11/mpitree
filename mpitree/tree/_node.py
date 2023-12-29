@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import Optional
 
 from numpy.typing import ArrayLike
 
 
 @dataclass(kw_only=True)
-class DecisionNode:
-    """A decision tree node.
-
-    The decision tree node defines the attributes and properties of a
-    `BaseDecisionTree`.
+class Node:
+    """A tree node.
 
     Parameters
     ----------
@@ -31,36 +28,35 @@ class DecisionNode:
         is initialized to 0 and successor nodes are one depth lower from
         its parent.
 
-    parent : DecisionNode, optional
+    parent : Node, optional
         The precedent node.
 
-    children : dict, default={}
-        The nodes on each split of the parent node.
+    left : Node, optional
+        The node whose `value` is less than or equal to its parent.
 
-    target: array-like
-        1D dataset array with shape (n_samples,) of either categorical or
-        numerical values.
+    right : Node, optional
+        The node whose `value` is greater than its parent.
     """
 
-    value: Union[str, float]
+    value: str | float
     threshold: Optional[float] = None
     level: Optional[str] = None
     depth: int = field(default_factory=int)
-    parent: Optional[DecisionNode] = field(default=None, repr=False)
-    children: dict = field(default_factory=dict, repr=False)
-    target: Optional[ArrayLike] = field(default_factory=None, repr=False)
+    parent: Optional[Node] = field(default=None, repr=False)
+    left: Optional[Node] = field(default=None, repr=False)
+    right: Optional[Node] = field(default=None, repr=False)
 
     def __post_init__(self):
         if self.parent is not None:
             self.depth = self.parent.depth + 1
 
     def __str__(self):
-        """Export a string-formatted decision node.
+        """Export a string-formatted node.
 
         Returns
         -------
         str
-            The string-formatted decision node.
+            The string-formatted node.
         """
 
         spacing = self.depth * "│  " + (
@@ -88,10 +84,10 @@ class DecisionNode:
     def is_leaf(self):
         """Return whether a node is terminal.
 
-        A decision node is a leaf node if it contains no children.
+        A node is a leaf node if it contains no children.
 
         Returns
         -------
         bool
         """
-        return not self.children
+        return self.left is None and self.right is None

@@ -44,6 +44,7 @@ The table above shows a set of eight processes ranked $(0, 1, ..., 7)$, distribu
 - [numpy](https://pypi.org/project/pandas/) (>= 1.24.1)
 - [matplotlib](https://pypi.org/project/matplotlib/) (>= 3.6.2)
 - [scikit-learn](https://pypi.org/project/scikit-learn/) (>= 1.2.2)
+- [graphviz](https://pypi.org/project/graphviz/) (>= 0.20.1)
 
 ## Installation
 
@@ -52,84 +53,24 @@ git clone https://github.com/ben-my-to/mpitree.git
 cd mpitree && make install
 ```
 
-## Example using the `sklearn.datasets.load_iris` dataset
-
-```python
-from sklearn.datasets import load_iris
-from mpitree.tree import ParallelDecisionTreeClassifier
-
-iris = load_iris()
-X, y = iris.data[:, :2], iris.target
-
-clf = ParallelDecisionTreeClassifier(max_depth=11).fit(X, y)
-
-if not clf.WORLD_RANK:
-    print(clf)
-```
-
-### Executing `example.py` with 5 processes
+### Example using `iris.py` with 2 processers
 
 ```bash
-$ mpirun -n 10 python3 example.py
+$ mpirun -n 2 python3 iris.py
+
 ┌── feature_0
-│  ├── feature_1 [> 5.5]
-│  │  ├── feature_0 [> 3.4]
-│  │  │  └── class: 2 [> 6.5]
-│  │  │  └── class: 0 [<= 6.5]
-│  │  ├── feature_0 [<= 3.4]
-│  │  │  ├── feature_0 [> 6.2]
-│  │  │  │  ├── feature_0 [<= 7.05]
-│  │  │  │  │  ├── feature_1 [<= 6.9]
-│  │  │  │  │  │  ├── feature_0 [> 2.4]
-│  │  │  │  │  │  │  ├── feature_1 [> 6.5]
-│  │  │  │  │  │  │  │  ├── feature_1 [<= 3.1]
-│  │  │  │  │  │  │  │  │  ├── feature_0 [> 2.65]
-│  │  │  │  │  │  │  │  │  │  ├── feature_1 [> 6.7]
-│  │  │  │  │  │  │  │  │  │  │  └── class: 2 [> 2.9]
-│  │  │  │  │  │  │  │  │  │  │  └── class: 1 [<= 2.9]
-│  │  │  │  │  │  │  │  │  │  └── class: 1 [<= 6.7]
-│  │  │  │  │  │  │  │  │  └── class: 2 [<= 2.65]
-│  │  │  │  │  │  │  │  └── class: 2 [> 3.1]
-│  │  │  │  │  │  │  ├── feature_1 [<= 6.5]
-│  │  │  │  │  │  │  │  ├── feature_1 [> 2.5]
-│  │  │  │  │  │  │  │  │  ├── feature_1 [> 2.75]
-│  │  │  │  │  │  │  │  │  │  ├── feature_1 [<= 3.3]
-│  │  │  │  │  │  │  │  │  │  │  └── class: 2 [> 3.15]
-│  │  │  │  │  │  │  │  │  │  │  └── class: 2 [<= 3.15]
-│  │  │  │  │  │  │  │  │  │  └── class: 2 [> 3.3]
-│  │  │  │  │  │  │  │  │  └── class: 2 [<= 2.75]
-│  │  │  │  │  │  │  │  └── class: 1 [<= 2.5]
-│  │  │  │  │  │  └── class: 1 [<= 2.4]
-│  │  │  │  │  └── class: 1 [> 6.9]
-│  │  │  │  └── class: 2 [> 7.05]
-│  │  │  ├── feature_0 [<= 6.2]
-│  │  │  │  ├── feature_1 [> 5.7]
-│  │  │  │  │  ├── feature_0 [> 2.95]
-│  │  │  │  │  │  ├── feature_1 [<= 6.1]
-│  │  │  │  │  │  │  └── class: 1 [> 3.0]
-│  │  │  │  │  │  │  └── class: 2 [<= 3.0]
-│  │  │  │  │  │  └── class: 2 [> 6.1]
-│  │  │  │  │  ├── feature_1 [<= 2.95]
-│  │  │  │  │  │  ├── feature_0 [<= 2.8]
-│  │  │  │  │  │  │  ├── feature_1 [> 5.8]
-│  │  │  │  │  │  │  │  ├── feature_0 [<= 2.65]
-│  │  │  │  │  │  │  │  │  ├── feature_0 [<= 6.15]
-│  │  │  │  │  │  │  │  │  │  └── class: 2 [> 6.0]
-│  │  │  │  │  │  │  │  │  │  └── class: 1 [<= 6.0]
-│  │  │  │  │  │  │  │  │  └── class: 1 [> 6.15]
-│  │  │  │  │  │  │  │  └── class: 1 [> 2.65]
-│  │  │  │  │  │  │  └── class: 1 [<= 5.8]
-│  │  │  │  │  │  └── class: 1 [> 2.8]
-│  │  │  │  └── class: 1 [<= 5.7]
-│  ├── feature_1 [<= 5.5]
-│  │  ├── feature_1 [> 2.8]
-│  │  │  └── class: 0 [> 3.0]
-│  │  │  └── class: 0 [<= 3.0]
+│  ├── feature_1 [> 5.4]
+│  │  ├── feature_0 [<= 3.9]
+│  │  │  └── class: 2 [> 7.05]
+│  │  │  └── class: 1 [<= 7.05]
+│  │  └── class: 0 [> 3.9]
+│  ├── feature_1 [<= 5.4]
 │  │  ├── feature_0 [<= 2.8]
-│  │  │  ├── feature_0 [<= 4.9]
-│  │  │  │  └── class: 1 [> 4.7]
-│  │  │  │  └── class: 0 [<= 4.7]
-│  │  │  └── class: 1 [> 4.9]
+│  │  │  └── class: 1 [> 4.7]
+│  │  │  └── class: 0 [<= 4.7]
+│  │  └── class: 0 [> 2.8]
+Train/Test Accuracy: (75.00%, 63.33%)
+Time: 0.0338 secs
 ```
 
 ### Decision Boundaries varying values for the `max_depth` hyperparameter
