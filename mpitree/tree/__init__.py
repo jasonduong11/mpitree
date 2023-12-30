@@ -3,6 +3,4 @@ from .decision_tree import (
     ParallelDecisionTreeClassifier,
 )
 
-from .neighbors import KDTree
-
-__all__ = ["DecisionTreeClassifier", "ParallelDecisionTreeClassifier", "KDTree"]
+__all__ = ["DecisionTreeClassifier", "ParallelDecisionTreeClassifier"]

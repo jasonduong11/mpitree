@@ -6,7 +6,6 @@ from abc import ABCMeta, abstractmethod
 from statistics import mode
 
 import numpy as np
-from sklearn.metrics import accuracy_score
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from ._node import Node
@@ -22,7 +21,7 @@ class BaseDecisionTree(metaclass=ABCMeta):
     max_depth : int, optional
         A hyperparameter that upper bounds the number of splits.
 
-    min_samples_split : int
+    min_samples_split : int, optional
         A hyperparameter that lower bounds the number of samples required to
         split.
     """
@@ -76,10 +75,12 @@ class BaseDecisionTree(metaclass=ABCMeta):
             tree_node = frontier.pop()
             yield tree_node
 
-            children = filter(
-                lambda n: n is not None, (tree_node.left, tree_node.right)
-            )
-            frontier.extend(sorted(children, key=lambda n: not n.is_leaf))
+            if not tree_node.is_leaf:
+                frontier.extend(
+                    sorted(
+                        [tree_node.left, tree_node.right], key=lambda n: not n.is_leaf
+                    )
+                )
 
     def _decision_paths(self, X):
         """Short Summary
@@ -306,7 +307,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         """Evaluate the performance of a decision tree classifier.
 
         The metric used to evaluate the performance of a decision tree
-        classifier is `sklearn.metrics.accuracy_score`.
+        classifier is the accuracy score.
 
         Parameters
         ----------
@@ -340,7 +341,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
     WORLD_SIZE = WORLD_COMM.Get_size()
 
     def _get_cyclic_dist(
-        self, comm: MPI.Intracomm = None, *, n_block: int = 1
+        self, comm: MPI.Intracomm = None, *, n_blocks: int = 1
     ) -> MPI.Intracomm:
         """Schedules processes in a round-robin fashion.
 
@@ -354,7 +355,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         MPI.Intracomm
         """
         rank = comm.Get_rank()
-        key, color = divmod(rank, n_block)
+        key, color = divmod(rank, n_blocks)
         return comm.Split(color, key)
 
     def _make_tree(self, X, y, *, parent=None, depth=0, comm=WORLD_COMM):
@@ -433,7 +434,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
                 comm=comm,
             )
         else:
-            group = self._get_cyclic_dist(comm, n_block=2)
+            group = self._get_cyclic_dist(comm, n_blocks=2)
 
             if rank % 2 == 0:
                 X, y = X[region_mask], y[region_mask]

@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from numpy.typing import ArrayLike
-
 
 @dataclass(kw_only=True)
 class Node:
