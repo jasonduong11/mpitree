@@ -14,14 +14,11 @@ class Node:
 
     Parameters
     ----------
-    value: str or float
+    value: float
         The descriptive or target feature value.
 
     threshold : float, optional
         Add Description Here.
-
-    level : str, optional
-        The feature value of a split from the parent node.
 
     depth : int, default=0
         The number of levels from the root to a node. The root node `depth`
@@ -38,9 +35,8 @@ class Node:
         The node whose `value` is greater than its parent.
     """
 
-    value: str | float
+    value: float
     threshold: Optional[float] = None
-    level: Optional[str] = None
     depth: int = field(default_factory=int)
     parent: Optional[Node] = field(default=None, repr=False)
     left: Optional[Node] = field(default=None, repr=False)
@@ -63,20 +59,20 @@ class Node:
             "└──" if self.is_leaf else "├──" if self.depth else "┌──"
         )
 
-        root_tmp = "{spacing} {value}"
-        interior_tmp = "{spacing} {value} [{sign} {threshold}]"
+        root_node_style = "{spacing} {value}"
+        interior_node_style = "{spacing} {value} [{sign} {threshold}]"
 
         feature_name = (
             f"class: {self.value}" if self.is_leaf else f"feature_{self.value}"
         )
 
         if not self.depth:
-            return root_tmp.format(spacing=spacing, value=feature_name)
+            return root_node_style.format(spacing=spacing, value=feature_name)
 
-        return interior_tmp.format(
+        return interior_node_style.format(
             spacing=spacing,
             value=feature_name,
-            sign=self.level,
+            sign=("<=" if self is self.parent.left else ">"),
             threshold=round(self.parent.threshold, 2),
         )
 
@@ -84,7 +80,7 @@ class Node:
     def is_leaf(self):
         """Return whether a node is terminal.
 
-        A node is a leaf node if it contains no children.
+        A node is a leaf proprty if it contains no children.
 
         Returns
         -------

@@ -32,7 +32,7 @@ A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 </tr>
 </table>
 
-The Parallel Decision Tree algorithm schedules processes in a cyclic distribution approximately evenly across levels of a split feature. Processes in each distribution independently participate among themselves at their respective levels and waits at their original *(parent)* communicator all other processes in that communicator. For every interior decision tree node created, a sub-communicator, $m$, is constructed, and each process per communicator concurrently participates in the calculation of the best feature to split *(i.e., the feature that maximizes the information gain)*. Let $n$ be the total number of processes and $p$ be the number of levels. Then, each distribution $m$ at some level $p$ contains at most $\lceil n/p \rceil$ processes, and only one distribution has $\lfloor n/p \rfloor$ processes where $n \nmid p$. Therefore, each process's rank $r$ is assigned to the sub-communicator $m = r \mod p$ and is assigned a unique rank in that group $r_m = \lfloor r/p \rfloor$.
+The Parallel Decision Tree algorithm schedules processes in a cyclic distribution approximately evenly across levels of a split feature. Processes in each distribution independently participate among themselves at their respective levels and waits at their original *(parent)* communicator all other processes in that communicator. For every interior decision tree node created, a sub-communicator, $m$, is constructed, and each process per communicator concurrently participates in the calculation of the best feature to split *(i.e., the feature that maximizes the information gain)*. Let $n$ be the total number of processes and $p$ be the number of levels. Then, each distribution $m$ at some level $p$ contains at most $\lceil n/p \rceil$ processes, and at least $\lfloor n/p \rfloor$ processes when $n \nmid p$. Therefore, each process's rank $r$ is assigned to the sub-communicator $m = r \mod p$ and is assigned a unique rank in that group $r_m = \lfloor r/p \rfloor$.
 
 A terminated routine call results in a sub-tree on a particular path from the root, and the *local* communicator is de-allocated. The algorithm terminates when all sub-trees are recursively gathered to the root process.
 
@@ -44,7 +44,6 @@ The table above shows a set of eight processes ranked $(0, 1, ..., 7)$, distribu
 - [numpy](https://pypi.org/project/pandas/) (>= 1.24.1)
 - [matplotlib](https://pypi.org/project/matplotlib/) (>= 3.6.2)
 - [scikit-learn](https://pypi.org/project/scikit-learn/) (>= 1.2.2)
-- [graphviz](https://pypi.org/project/graphviz/) (>= 0.20.1)
 
 ## Installation
 
@@ -53,24 +52,20 @@ git clone https://github.com/ben-my-to/mpitree.git
 cd mpitree && make install
 ```
 
-## Example using `iris.py` with 2 processers
+## Example using `iris.py` with 2 processes
 
 ```bash
 $ mpirun -n 2 python3 iris.py
 
 ┌── feature_0
-│  ├── feature_1 [> 5.4]
-│  │  ├── feature_0 [<= 3.9]
-│  │  │  └── class: 2 [> 7.05]
-│  │  │  └── class: 1 [<= 7.05]
-│  │  └── class: 0 [> 3.9]
-│  ├── feature_1 [<= 5.4]
-│  │  ├── feature_0 [<= 2.8]
-│  │  │  └── class: 1 [> 4.7]
-│  │  │  └── class: 0 [<= 4.7]
-│  │  └── class: 0 [> 2.8]
-Train/Test Accuracy: (75.00%, 63.33%)
-Time: 0.0338 secs
+│  ├── feature_1 [> 5.5]
+│  │  └── class: 0 [> 3.6]
+│  │  └── class: 2 [<= 3.6]
+│  ├── feature_1 [<= 5.5]
+│  │  └── class: 0 [> 2.7]
+│  │  └── class: 1 [<= 2.7]
+Time: 0.0145 secs
+
 ```
 
 ## Decision Boundaries varying values for the `max_depth` hyperparameter

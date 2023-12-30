@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
-from copy import deepcopy
 from statistics import mode
 
 import numpy as np
@@ -90,7 +89,7 @@ class BaseDecisionTree(metaclass=ABCMeta):
         Parameters
         ----------
         X : array-like
-            2D test feature matrix with shape (n_samples, n_features) of numerical values.
+            2D test feature array with shape (n_samples, n_features) of numerical values.
 
         Returns
         -------
@@ -100,7 +99,7 @@ class BaseDecisionTree(metaclass=ABCMeta):
         check_is_fitted(self)
         X = check_array(X, dtype=object)
 
-        def tree_walk(query) -> Node:
+        def tree_walk(x) -> Node:
             """Traverse a decision tree estimator from root to some leaf node.
 
             Decision nodes are queried based on the respective feature value
@@ -118,7 +117,7 @@ class BaseDecisionTree(metaclass=ABCMeta):
             tree_node = self.tree_
 
             while not tree_node.is_leaf:
-                if query[tree_node.value] <= tree_node.threshold:
+                if x[tree_node.value] <= tree_node.threshold:
                     tree_node = tree_node.left
                 else:
                     tree_node = tree_node.right
@@ -126,9 +125,6 @@ class BaseDecisionTree(metaclass=ABCMeta):
             return tree_node
 
         return np.apply_along_axis(tree_walk, axis=1, arr=X)
-
-    def export_graphviz(self):
-        ...
 
     def predict(self, X):
         """Return the predicated leaf decision node.
@@ -138,7 +134,7 @@ class BaseDecisionTree(metaclass=ABCMeta):
         Parameters
         ----------
         X : array-like
-            2D test feature matrix with shape (n_samples, n_features) of
+            2D test feature array with shape (n_samples, n_features) of
             numerical values.
 
         Returns
@@ -163,7 +159,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         Parameters
         ----------
         X : array-like
-            2D feature matrix with shape (n_samples, n_features) of numerical values.
+            2D feature array with shape (n_samples, n_features) of numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
@@ -175,7 +171,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         X, y = check_X_y(X, y, dtype=object)
 
         self.classes_ = np.unique(y)
-        self.n_features_ = range(X.shape[1])
+        self.n_features_ = X.shape[1]
 
         self.tree_ = self._make_tree(X, y)
         return self
@@ -209,7 +205,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         Parameters
         ----------
         X : array-like
-            2D feature matrix with shape (n_samples, n_features) of numerical values.
+            2D feature array with shape (n_samples, n_features) of numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
@@ -223,10 +219,12 @@ class DecisionTreeClassifier(BaseDecisionTree):
         possible_thresholds = np.unique(X[:, feature_idx])
 
         def cond_entropy(t):
-            mask = X[:, feature_idx] <= t
-            regions = X[mask], X[~mask]
-            weights = np.array([len(r) / len(X) for r in regions])
-            impurity = np.array([self._entropy(y[mask]), self._entropy(y[~mask])])
+            region_bound = X[:, feature_idx] <= t
+            levels = X[region_bound], X[~region_bound]
+            weights = np.array([len(level) / len(X) for level in levels])
+            impurity = np.array(
+                [self._entropy(y[region_bound]), self._entropy(y[~region_bound])]
+            )
             return weights @ impurity
 
         costs = [cond_entropy(t) for t in possible_thresholds]
@@ -236,7 +234,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
             possible_thresholds[np.argmin(costs)],
         )
 
-    def _make_tree(self, X, y, *, parent=None, level=None, depth=0):
+    def _make_tree(self, X, y, *, parent=None, depth=0):
         """Short Summary
 
         Extended Summary
@@ -244,7 +242,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         Parameters
         ----------
         X : array-like
-            2D feature matrix with shape (n_samples, n_features) of numerical values.
+            2D feature array with shape (n_samples, n_features) of numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
@@ -259,47 +257,46 @@ class DecisionTreeClassifier(BaseDecisionTree):
         -------
         Node
         """
+        n_classes = len(np.unique(y))
+        n_samples = len(X)
 
         def make_node(value, threshold=None):
             return Node(
                 value=value,
                 threshold=threshold,
-                level=level,
                 parent=parent,
             )
 
         if (
-            len(np.unique(y)) == 1
+            n_classes == 1
             or np.all(X == X[0])
             or (self.max_depth is not None and self.max_depth == depth)
-            or self.min_samples_split > len(X)
+            or n_samples < self.min_samples_split
         ):
             return make_node(mode(y))
 
-        gains, thresholds = zip(
-            *[self._compute_information_gain(X, y, i) for i in self.n_features_]
+        info_gains, level_thresholds = zip(
+            *[self._compute_information_gain(X, y, i) for i in range(self.n_features_)]
         )
 
-        split_feature_idx = np.argmax(gains)
-        split_node = make_node(
-            value=split_feature_idx, threshold=thresholds[split_feature_idx]
-        )
+        split_feature_idx = np.argmax(info_gains)
+        split_threshold = level_thresholds[split_feature_idx]
 
-        mask = X[:, split_feature_idx] <= split_node.threshold
+        split_node = make_node(value=split_feature_idx, threshold=split_threshold)
+
+        region_mask = X[:, split_feature_idx] <= split_threshold
 
         split_node.left = self._make_tree(
-            X[mask],
-            y[mask],
+            X[region_mask],
+            y[region_mask],
             parent=split_node,
-            level="<=",
             depth=depth + 1,
         )
 
         split_node.right = self._make_tree(
-            X[~mask],
-            y[~mask],
+            X[~region_mask],
+            y[~region_mask],
             parent=split_node,
-            level=">",
             depth=depth + 1,
         )
 
@@ -314,7 +311,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         Parameters
         ----------
         X : array-like
-            2D test feature matrix with shape (n_samples, n_features) of numerical values.
+            2D test feature array with shape (n_samples, n_features) of numerical values.
 
         y : array-like
             1D test target array with shape (n_samples,) of categorical values.
@@ -327,7 +324,7 @@ class DecisionTreeClassifier(BaseDecisionTree):
         X, y = check_X_y(X, y, dtype=object)
 
         y_pred = self.predict(X)
-        return accuracy_score(y, y_pred)
+        return np.sum(y, y_pred) / len(y)
 
 
 class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
@@ -342,7 +339,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
     WORLD_RANK = WORLD_COMM.Get_rank()
     WORLD_SIZE = WORLD_COMM.Get_size()
 
-    def Get_cyclic_dist(
+    def _get_cyclic_dist(
         self, comm: MPI.Intracomm = None, *, n_block: int = 1
     ) -> MPI.Intracomm:
         """Schedules processes in a round-robin fashion.
@@ -360,7 +357,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         key, color = divmod(rank, n_block)
         return comm.Split(color, key)
 
-    def _make_tree(self, X, y, *, parent=None, level=None, depth=0, comm=WORLD_COMM):
+    def _make_tree(self, X, y, *, parent=None, depth=0, comm=WORLD_COMM):
         """Short Summary
 
         Extended Summary
@@ -368,7 +365,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         Parameters
         ----------
         X : array-like
-            2D feature matrix with shape (n_samples, n_features) of numerical values.
+            2D feature array with shape (n_samples, n_features) of numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of numerical values.
@@ -386,65 +383,63 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         Node
         """
 
-        def make_node(value, threshold=None):
-            return deepcopy(
-                Node(
-                    value=value,
-                    threshold=threshold,
-                    level=level,
-                    parent=parent,
-                )
-            )
+        n_classes = len(np.unique(y))
+        n_samples = len(X)
 
         rank = comm.Get_rank()
         size = comm.Get_size()
 
+        def make_node(value, threshold=None):
+            return Node(
+                value=value,
+                threshold=threshold,
+                parent=parent,
+            )
+
         if (
-            len(np.unique(y)) == 1
+            n_classes == 1
             or np.all(X == X[0])
             or self.max_depth is not None
             and self.max_depth == depth
-            or self.min_samples_split > len(X)
+            or n_samples < self.min_samples_split
         ):
             return make_node(mode(y))
 
-        gains, thresholds = zip(
-            *[self._compute_information_gain(X, y, i) for i in self.n_features_]
+        info_gains, level_thresholds = zip(
+            *[self._compute_information_gain(X, y, i) for i in range(self.n_features_)]
         )
 
-        split_feature_idx = np.argmax(gains)
-        split_node = make_node(
-            value=split_feature_idx, threshold=thresholds[split_feature_idx]
-        )
+        split_feature_idx = np.argmax(info_gains)
+        split_threshold = level_thresholds[split_feature_idx]
 
-        mask = X[:, split_feature_idx] <= split_node.threshold
+        split_node = make_node(value=split_feature_idx, threshold=split_threshold)
+
+        region_mask = X[:, split_feature_idx] <= split_threshold
 
         if size == 1:
             split_node.left = self._make_tree(
-                X[mask],
-                y[mask],
+                X[region_mask],
+                y[region_mask],
                 parent=split_node,
-                level="<=",
                 depth=depth + 1,
                 comm=comm,
             )
 
             split_node.right = self._make_tree(
-                X[~mask],
-                y[~mask],
+                X[~region_mask],
+                y[~region_mask],
                 parent=split_node,
-                level=">",
                 depth=depth + 1,
                 comm=comm,
             )
         else:
-            group = self.Get_cyclic_dist(comm, n_block=2)
+            group = self._get_cyclic_dist(comm, n_block=2)
 
             if rank % 2 == 0:
-                X, y = X[mask], y[mask]
+                X, y = X[region_mask], y[region_mask]
                 level = "<="
             else:
-                X, y = X[~mask], y[~mask]
+                X, y = X[~region_mask], y[~region_mask]
                 level = ">"
 
             levels = comm.allgather(
@@ -453,7 +448,6 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
                         X,
                         y,
                         parent=split_node,
-                        level=level,
                         depth=depth + 1,
                         comm=group,
                     )
@@ -461,10 +455,10 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
             )
 
             for level in levels:
-                for level, subtree in level.items():
-                    if level == "<=":
+                for sign, subtree in level.items():
+                    if sign == "<=":
                         split_node.left = subtree
-                    elif level == ">":
+                    elif sign == ">":
                         split_node.right = subtree
 
             group.Free()
