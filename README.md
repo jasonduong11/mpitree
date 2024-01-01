@@ -6,32 +6,6 @@
 
 A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 
-## Overview
-
-<table>
-<tr>
-    <td colspan="4" style=text-align:center;><b>Cyclic Distribution</b></td>
-</tr>
-<tr>
-    <th style=background-color:#eee;><i>r</t></th>
-    <td>0 1 2</td>
-    <td>3 4 5</td>
-    <td>6 7</td>
-</tr>
-<tr>
-    <th style=background-color:#eee;><i>m</i></th>
-    <td>0 1 2</td>
-    <td>0 1 2</td>
-    <td>0 1</td>
-</tr>
-<tr>
-    <th style=background-color:#eee;><i>r<sub>m</sub></i></th>
-    <td>0 0 0</td>
-    <td>1 1 1</td>
-    <td>2 2</td>
-</tr>
-</table>
-
 ## Requirements
 
 - [mpi4py](https://pypi.org/project/mpi4py/) (>= 3.1.4)
