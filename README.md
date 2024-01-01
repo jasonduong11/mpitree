@@ -32,12 +32,6 @@ A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 </tr>
 </table>
 
-The Parallel Decision Tree algorithm schedules processes in a cyclic distribution approximately evenly across levels of a split feature. Processes in each distribution independently participate among themselves at their respective levels and waits at their original *(parent)* communicator all other processes in that communicator. For every interior decision tree node created, a sub-communicator, $m$, is constructed, and each process per communicator concurrently participates in the calculation of the best feature to split *(i.e., the feature that maximizes the information gain)*. Let $n$ be the total number of processes and $p$ be the number of levels. Then, each distribution $m$ at some level $p$ contains at most $\lceil n/p \rceil$ processes, and at least $\lfloor n/p \rfloor$ processes when $n \nmid p$. Therefore, each process's rank $r$ is assigned to the sub-communicator $m = r \mod p$ and is assigned a unique rank in that group $r_m = \lfloor r/p \rfloor$.
-
-A terminated routine call results in a sub-tree on a particular path from the root, and the *local* communicator is de-allocated. The algorithm terminates when all sub-trees are recursively gathered to the root process.
-
-The table above shows a set of eight processes ranked $(0, 1, ..., 7)$, distributed across three feature levels. Group $0$ consists of a set of processes and ranks, $\{(0,0),(3,1),(6,2)\}$ respectively, Group $1$ consists of a set of processes and ranks, $\{(1,0),(4,1),(7,2)\}$ respectively and Group $2$ consists of a set of processes and ranks, $\{(2,0), (5,1)\}$ respectively.
-
 ## Requirements
 
 - [mpi4py](https://pypi.org/project/mpi4py/) (>= 3.1.4)
@@ -67,14 +61,6 @@ $ mpirun -n 2 python3 iris.py
 Time: 0.0145 secs
 
 ```
-
-## Decision Boundaries varying values for the `max_depth` hyperparameter
-
-Overfitting becomes apparent as the decision tree gets deeper because predictions are based on smaller and smaller cuboidal regions of the feature space. In a sense, the decision tree model is biasing towards *singleton* nodes; and, therefore, may cause mispredictions in the likelihood of noisy data.
-
-Pre-and-post-pruning techniques are some solutions to reduce the likelihood of an overfitted decision tree. Pre-pruning techniques introduce early stopping criteria *(e.g., depth, number of samples)*. One may resort to validation methodologies *(e.g., k-fold Cross-Validation)* in both pruning techniques.
-
-The figure below depicts various decision boundaries for different values of the `max_depth` hyperparameter. We used the *iris* dataset provided by *scikit-learn* as it gives a base analysis for our (parallel) decision tree implementation. The figure demonstrates how noisy instances may negatively impact the performance of the decision tree model.
 
 ## Contributing
 
