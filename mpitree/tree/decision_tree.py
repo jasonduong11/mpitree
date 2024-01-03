@@ -5,6 +5,8 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from statistics import mode
 
+from sklearn.base import BaseEstimator, ClassifierMixin
+
 import numpy as np
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
@@ -148,7 +150,7 @@ class BaseDecisionTree(metaclass=ABCMeta):
         return np.vectorize(lambda n: n.value)(self._decision_paths(X))
 
 
-class DecisionTreeClassifier(BaseDecisionTree):
+class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
     def __init__(self, *, max_depth=None, min_samples_split=2):
         super().__init__(max_depth=max_depth, min_samples_split=min_samples_split)
 
@@ -303,31 +305,6 @@ class DecisionTreeClassifier(BaseDecisionTree):
 
         return split_node
 
-    def score(self, X, y):
-        """Evaluate the performance of a decision tree classifier.
-
-        The metric used to evaluate the performance of a decision tree
-        classifier is the accuracy score.
-
-        Parameters
-        ----------
-        X : array-like
-            2D test feature array with shape (n_samples, n_features) of numerical values.
-
-        y : array-like
-            1D test target array with shape (n_samples,) of categorical values.
-
-        Returns
-        -------
-        float
-        """
-        check_is_fitted(self)
-        X, y = check_X_y(X, y, dtype=object)
-
-        y_pred = self.predict(X)
-        return np.sum(y, y_pred) / len(y)
-
-
 class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
     """Short Summary
 
@@ -369,7 +346,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
             2D feature array with shape (n_samples, n_features) of numerical values.
 
         y : array-like
-            1D target array with shape (n_samples,) of numerical values.
+            1D target array with shape (n_samples,) of categorical values.
 
         parent : Node, default=None
 

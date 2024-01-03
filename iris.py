@@ -4,12 +4,10 @@ from mpi4py import MPI
 from mpitree.tree import ParallelDecisionTreeClassifier as pdt
 
 iris = load_iris()
-X, y = iris.data[:, :2], iris.target
-
 start_time = MPI.Wtime()
 
 # Concurrently train a decision tree classifier with max-depth 2 among all processes
-clf = pdt(max_depth=2).fit(X, y)
+clf = pdt(max_depth=2).fit(iris.data[:, :2], iris.target)
 
 if not pdt.WORLD_RANK:
     print(clf)
