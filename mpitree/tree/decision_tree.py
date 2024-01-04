@@ -148,6 +148,7 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
     """
     A decision tree classifier class.
     """
+
     def __init__(self, *, max_depth=None, min_samples_split=2):
         super().__init__(max_depth=max_depth, min_samples_split=min_samples_split)
 
@@ -301,6 +302,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
     """
     A parallel decision classifier class.
     """
+
     from mpi4py import MPI
 
     WORLD_COMM = MPI.COMM_WORLD

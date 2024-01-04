@@ -30,6 +30,7 @@ class Node:
         its parent (the default is `None` which implies the node is a leaf
         node).
     """
+
     value: int
     threshold: Optional[float] = None
     depth: int = field(default_factory=int)
