@@ -14,31 +14,36 @@ from ._node import Node
 
 
 class BaseDecisionTree(metaclass=ABCMeta):
-    """Short Summary
-
-    Extended Summary
+    """A base decision tree class.
 
     Parameters
     ----------
     max_depth : int, optional
-        A hyperparameter that upper bounds the number of splits.
+        A hyperparameter that upper bounds the number of splits per level.
+        (the default is `None`, which implies the decision tree can be at
+        any depth).
 
     min_samples_split : int, optional
-        A hyperparameter that lower bounds the number of samples required to
-        split.
+        A hyperparameter that lower bounds the number of samples required
+        to split. (the default is 2, which implies decision tree estimator
+        may contain singleton nodes).
     """
 
     @abstractmethod
-    def __init__(self, *, max_depth: int, min_samples_split: int):
-        self.max_depth = max_depth  # [0, inf)
-        self.min_samples_split = min_samples_split  # [2, inf)
+    def __init__(self, *, max_depth, min_samples_split):
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
 
     def __str__(self):
-        """Export a text-based visualization of a decision tree estimator.
+        """Return a text-based visualization of a decision tree estimator.
 
         The function is a wrapper function for the overloaded `iter`
         method that displays each string-formatted `Node` in a
         decision tree estimator.
+
+        See Also
+        --------
+        mpitree.tree._node.__str__()
 
         Returns
         -------
@@ -50,49 +55,37 @@ class BaseDecisionTree(metaclass=ABCMeta):
     def __iter__(self):
         """Perform a depth-first search on a decision tree estimator.
 
-        The iterative traversal starts at the root decision node, explores
-        as deep as possible from its prioritized children, and backtracks
-        after reaching a leaf decision node.
+        The depth-first search traversal is an iterative implementation
+        using stack data structure. The frontier is ordered by interior
+        nodes first when nodes are pushed onto the stack. This provides
+        the minimum number of disjoint branch components at each level.
 
         Yields
         ------
         Node
-
-        Notes
-        -----
-        Since a decision tree estimator is a DAG (Directed Acyclic Graph)
-        data structure, we do not maintain a list of visited nodes for
-        nodes already explored or the frontier for nodes already pushed,
-        but yet to be explored (i.e., duplicate nodes).
-
-        The ordering of decision nodes at each level in the stack is as
-        follows, non-leaf always precedes leaf nodes. This provides the
-        minimum number of disjoint branch components at each level of a
-        decision tree estimator.
         """
         check_is_fitted(self)
 
-        frontier = [self.tree_]
-        while frontier:
-            tree_node = frontier.pop()
+        stack = [self.tree_]
+        while stack:
+            tree_node = stack.pop()
             yield tree_node
 
             if not tree_node.is_leaf:
-                frontier.extend(
+                stack.extend(
                     sorted(
                         [tree_node.left, tree_node.right], key=lambda n: not n.is_leaf
                     )
                 )
 
     def _decision_paths(self, X):
-        """Short Summary
-
-        Extended Summary
+        """Return a list of predicted leaf nodes.
 
         Parameters
         ----------
         X : array-like
-            2D test feature array with shape (n_samples, n_features) of numerical values.
+            2D test feature array with shape (n_samples, n_features) of
+            numerical values.
 
         Returns
         -------
@@ -103,10 +96,10 @@ class BaseDecisionTree(metaclass=ABCMeta):
         X = check_array(X, dtype=object)
 
         def tree_walk(x) -> Node:
-            """Traverse a decision tree estimator from root to some leaf node.
+            """Traverse a decision tree from the root to some leaf node.
 
-            Decision nodes are queried based on the respective feature value
-            from `x` at each level until some leaf decision node is reached.
+            Nodes are queried based on the respective feature value from
+            `x` at each level until some leaf node has reached.
 
             Parameters
             ----------
@@ -130,9 +123,10 @@ class BaseDecisionTree(metaclass=ABCMeta):
         return np.apply_along_axis(tree_walk, axis=1, arr=X)
 
     def predict(self, X):
-        """Return the predicated leaf decision node.
+        """Return a predicted leaf node.
 
-        Extended Summary
+        The function is a wrapper function for the `_decision_paths`
+        function that returns the `value` for each predicted leaf node.
 
         Parameters
         ----------
@@ -151,18 +145,20 @@ class BaseDecisionTree(metaclass=ABCMeta):
 
 
 class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
+    """
+    A decision tree classifier class.
+    """
     def __init__(self, *, max_depth=None, min_samples_split=2):
         super().__init__(max_depth=max_depth, min_samples_split=min_samples_split)
 
     def fit(self, X, y):
-        """Short Summary
-
-        Extended Summary
+        """Train a decision tree classifier.
 
         Parameters
         ----------
         X : array-like
-            2D feature array with shape (n_samples, n_features) of numerical values.
+            2D feature array with shape (n_samples, n_features) of
+            numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
@@ -180,11 +176,7 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         return self
 
     def _entropy(self, x):
-        """Measure the impurity on some feature.
-
-        The parameter `x` is assumed to represent values for some
-        particular feature (including the label or target feature) on some
-        dataset `X`.
+        """Measure the impurity on an array.
 
         Parameters
         ----------
@@ -195,29 +187,29 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         -------
         float
         """
-
         _, n_unique_classes = np.unique(x, return_counts=True)
         proba = n_unique_classes / len(x)
         return -np.sum(proba * np.log2(proba))
 
     def _compute_information_gain(self, X, y, feature_idx):
-        """Short Summary
-
-        Extended Summary
+        """Return the difference of entropies before and after splitting.
 
         Parameters
         ----------
         X : array-like
-            2D feature array with shape (n_samples, n_features) of numerical values.
+            2D feature array with shape (n_samples, n_features) of
+            numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
 
         feature_idx : int
+            The feature index value.
 
         Returns
         -------
-        max_gain : The maximum information gain value.
+        tuple
+            The maximum information gain and optimal threshold value.
         """
         possible_thresholds = np.unique(X[:, feature_idx])
 
@@ -238,23 +230,22 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         )
 
     def _make_tree(self, X, y, *, parent=None, depth=0):
-        """Short Summary
-
-        Extended Summary
+        """Recursively constructs a decision tree classifier.
 
         Parameters
         ----------
         X : array-like
-            2D feature array with shape (n_samples, n_features) of numerical values.
+            2D feature array with shape (n_samples, n_features) of
+            numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
 
         parent : DecisionTreeClassifier, default=None
-
-        level: str, default=None
+            The precedent node.
 
         depth : int, default=0
+            The number of edges from the root node.
 
         Returns
         -------
@@ -305,12 +296,11 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
 
         return split_node
 
+
 class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
-    """Short Summary
-
-    Extended Summary
     """
-
+    A parallel decision classifier class.
+    """
     from mpi4py import MPI
 
     WORLD_COMM = MPI.COMM_WORLD
@@ -325,7 +315,10 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         Parameters
         ----------
         comm : MPI.Intracomm, default=None
+            The current communicator.
+
         n_block : int, default=1
+            The number of distributions.
 
         Returns
         -------
@@ -336,25 +329,25 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         return comm.Split(color, key)
 
     def _make_tree(self, X, y, *, parent=None, depth=0, comm=WORLD_COMM):
-        """Short Summary
-
-        Extended Summary
+        """Recursively constructs a parallel decision tree estimator.
 
         Parameters
         ----------
         X : array-like
-            2D feature array with shape (n_samples, n_features) of numerical values.
+            2D feature array with shape (n_samples, n_features)
+            of numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
 
         parent : Node, default=None
-
-        level: str, default=None
+            The precedent node.
 
         depth : int, default=0
+            The number of edges from the root node.
 
         comm : MPI.Intracomm, default=WORLD_COMM
+            The current communicator.
 
         Returns
         -------

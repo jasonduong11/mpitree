@@ -1,7 +1,10 @@
 VENV = env
 PYTHON = $(VENV)/bin/python3
 
-install: requirements.txt
+activate:
+	. $(VENV)/bin/activate
+
+build: requirements.txt
 	python3 -m venv $(VENV)
 	$(VENV)/bin/pip install -r requirements.txt
 

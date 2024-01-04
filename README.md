@@ -17,7 +17,7 @@ A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 
 ```bash
 git clone https://github.com/ben-my-to/mpitree.git
-cd mpitree && make install
+cd mpitree && make build
 ```
 
 ## Example using `iris.py` with 2 processes
@@ -29,10 +29,10 @@ $ mpirun -n 2 python3 iris.py
 │  ├── feature_1 [> 5.5]
 │  │  └── class: 0 [> 3.6]
 │  │  └── class: 2 [<= 3.6]
-│  ├── feature_1 [<= 5.5]
+│  ├── feature_1 [> 5.5]
 │  │  └── class: 0 [> 2.7]
 │  │  └── class: 1 [<= 2.7]
-Time: 0.0145 secs
+Time: 4.6480 ms
 
 ```
 
