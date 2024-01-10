@@ -32,8 +32,7 @@ $ mpirun -n 2 python3 iris.py
 │  ├── feature_1 [> 5.5]
 │  │  └── class: 0 [> 2.7]
 │  │  └── class: 1 [<= 2.7]
-Time: 4.6480 ms
-
+Time: 3.20 ms
 ```
 
 ## Contributing

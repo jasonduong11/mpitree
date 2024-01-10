@@ -11,4 +11,4 @@ clf = pdt(max_depth=2).fit(iris.data[:, :2], iris.target)
 
 if not pdt.WORLD_RANK:
     print(clf)
-    print(f"Time: {(MPI.Wtime() - start_time)*1000:.4f} ms")
+    print(f"Time: {((MPI.Wtime() - start_time) * 1000):.2f} ms")

@@ -1,4 +1,6 @@
-""""""
+"""
+This module defines the tree node class.
+"""
 
 from __future__ import annotations
 
@@ -13,10 +15,10 @@ class Node:
     Parameters
     ----------
     value: int
-        The feature or class value.
+        The feature index or target value.
 
     threshold : float, optional
-        The value indicating the split boundaries.
+        The feature value representing a split boundary.
 
     depth : int, default=0
         The number of levels from the root to a node.
@@ -26,9 +28,9 @@ class Node:
         is a root node).
 
     left, right : Node, optional
-        The node whose `value` is (less than or equal) or (greater) than
-        its parent (the default is `None` which implies the node is a leaf
-        node).
+        The node whose `value` is (less than or equal to) or (greater than)
+        its `parent` (the default is `None` which implies the node is a
+        leaf node).
     """
 
     value: int
@@ -45,32 +47,33 @@ class Node:
     def __str__(self):
         """Return a string-formatted node.
 
-        Each line outputs a node indented according to their level with
-        values either a feature (interior nodes) or class (leaf nodes),
-        value and identified by the branch taken from its parent.
+        The function outputs a node's `value` indented according to their
+        `depth` and their split condition for non-root nodes.
 
         Returns
         -------
         str
-            The string-formatted node.
         """
         spacing = self.depth * "│  " + (
             "└──" if self.is_leaf else "├──" if self.depth else "┌──"
         )
 
-        root_node_template = "{spacing} {value}"
-        interior_node_template = "{spacing} {value} [{sign} {threshold}]"
+        root_node_signature = "{spacing} {value}"
+        interior_node_signature = "{spacing} {value} [{sign} {threshold}]"
 
-        value_name = f"class: {self.value}" if self.is_leaf else f"feature_{self.value}"
+        value = f"class: {self.value}" if self.is_leaf else f"feature_{self.value}"
 
         if not self.depth:
-            return root_node_template.format(spacing=spacing, value=value_name)
+            return root_node_signature.format(spacing=spacing, value=value)
 
-        return interior_node_template.format(
+        sign = "<=" if self is self.parent.left else ">"
+        threshold = round(self.parent.threshold, 2)
+
+        return interior_node_signature.format(
             spacing=spacing,
-            value=value_name,
-            sign=("<=" if self is self.parent.left else ">"),
-            threshold=round(self.parent.threshold, 2),
+            value=value,
+            sign=sign,
+            threshold=threshold,
         )
 
     @property
@@ -85,3 +88,18 @@ class Node:
         bool
         """
         return self.left is None and self.right is None
+
+    def get_children(self):
+        """Return a list of left and right nodes.
+
+        If the node is a leaf node, the function returns an empty list;
+        otherwise, returns a list of left and right nodes.
+
+        Returns
+        -------
+        list
+        """
+
+        if self.is_leaf:
+            return []
+        return [self.left, self.right]
