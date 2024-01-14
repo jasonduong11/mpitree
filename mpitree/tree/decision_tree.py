@@ -1,6 +1,7 @@
-"""
-This module defines the base decision tree, decision tree classifier, and
-parallel decision tree classifier classes.
+"""This module defines the (parallel) decision tree classifier classes.
+
+Author: Jason Duong
+Date: 01/11/24
 """
 
 from __future__ import annotations
@@ -10,13 +11,13 @@ from typing import override
 from sklearn.base import BaseEstimator, ClassifierMixin
 
 import numpy as np
-from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
+from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 
-from ._node import Node
+from ._base import Node
 
 
-class BaseDecisionTree:
-    """A base decision tree class.
+class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
+    """A decision tree classifier class.
 
     Parameters
     ----------
@@ -27,20 +28,20 @@ class BaseDecisionTree:
 
     min_samples_split : int, optional
         A hyperparameter that lower bounds the number of samples required
-        to split. (the default is 2, which implies decision tree estimator
+        to split. (the default is 2, which implies decision tree classifier
         may contain singleton nodes).
     """
 
-    def __init__(self, *, max_depth, min_samples_split):
+    def __init__(self, *, max_depth=None, min_samples_split=2):
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
 
     def __str__(self):
-        """Return a text-based visualization of a decision tree estimator.
+        """Return a text-based visualization of a decision tree classifier.
 
         The function is a wrapper function for the overloaded `iter`
         method that displays each string-formatted `Node` in a
-        decision tree estimator.
+        decision tree classifier.
 
         See Also
         --------
@@ -54,11 +55,11 @@ class BaseDecisionTree:
         return "\n".join(map(str, self))
 
     def __iter__(self):
-        """Perform a depth-first search on a decision tree estimator.
+        """Perform a depth-first search on a decision tree classifier.
 
-        The frontier is ordered by interior nodes first when nodes are
-        pushed onto the stack. This provides the minimum number of
-        disjoint branch components at each level.
+        The stack is ordered by interior nodes first when nodes are
+        pushed. This provides the minimum number of disjoint branch
+        components at each level.
 
         Yields
         ------
@@ -119,36 +120,6 @@ class BaseDecisionTree:
 
         return np.apply_along_axis(tree_walk, axis=1, arr=X)
 
-    def predict(self, X):
-        """Return a predicted leaf node.
-
-        The function is a wrapper function for the `_decision_paths`
-        function that returns the `value` for each predicted leaf node.
-
-        Parameters
-        ----------
-        X : array-like
-            2D test feature array with shape (n_samples, n_features) of
-            numerical values.
-
-        Returns
-        -------
-        ndarray
-        """
-        check_is_fitted(self)
-        X = check_array(X, dtype=object)
-
-        return np.vectorize(lambda node: node.value)(self._decision_paths(X))
-
-
-class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
-    """
-    A decision tree classifier class.
-    """
-
-    def __init__(self, *, max_depth=None, min_samples_split=2):
-        super().__init__(max_depth=max_depth, min_samples_split=min_samples_split)
-
     def fit(self, X, y):
         """Train a decision tree classifier.
 
@@ -167,7 +138,7 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         """
         X, y = check_X_y(X, y, dtype=object)
 
-        self.n_features_ = X.shape[1]
+        _, self.n_features_ = X.shape
 
         self.tree_ = self._make_tree(X, y)
         return self
@@ -261,18 +232,24 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
         ):
             return Node(value=np.bincount(y).argmax(), parent=parent)
 
-        info_gains, level_thresholds = zip(
-            *[self._compute_information_gain(X, y, i) for i in range(self.n_features_)]
-        )
+        best_level_gains = []
+        best_level_thresholds = []
 
-        split_feature_idx = np.argmax(info_gains)
-        split_threshold = level_thresholds[split_feature_idx]
+        for feature_idx in range(self.n_features_):
+            gain_pred, threshold_pred = self._compute_information_gain(
+                X, y, feature_idx
+            )
+            best_level_gains.append(gain_pred)
+            best_level_thresholds.append(threshold_pred)
+
+        split_feature_idx = np.argmax(best_level_gains)
+        split_threshold = best_level_thresholds[split_feature_idx]
 
         split_node = Node(
             value=split_feature_idx, threshold=split_threshold, parent=parent
         )
 
-        region = X[:, split_feature_idx] <= split_threshold
+        region = X[:, split_node.value] <= split_node.threshold
 
         split_node.left = self._make_tree(
             X[region],
@@ -290,11 +267,30 @@ class DecisionTreeClassifier(BaseDecisionTree, BaseEstimator, ClassifierMixin):
 
         return split_node
 
+    def predict(self, X):
+        """Return a predicted leaf node.
+
+        The function is a wrapper function for the `_decision_paths`
+        function that returns the `value` for each predicted leaf node.
+
+        Parameters
+        ----------
+        X : array-like
+            2D test feature array with shape (n_samples, n_features) of
+            numerical values.
+
+        Returns
+        -------
+        ndarray
+        """
+        check_is_fitted(self)
+        X = check_array(X, dtype=object)
+
+        return np.vectorize(lambda node: node.value)(self._decision_paths(X))
+
 
 class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
-    """
-    A parallel decision classifier class.
-    """
+    """A parallel decision classifier class."""
 
     from mpi4py import MPI
 
@@ -323,20 +319,47 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         key, color = divmod(rank, n_blocks)
         return comm.Split(color, key)
 
-    @override
-    def _make_tree(self, X, y, *, parent=None, depth=0, comm=WORLD_COMM):
-        """Recursively constructs a parallel decision tree estimator.
+    def fit(self, X, y):
+        """Train a decision tree classifier.
 
         Parameters
         ----------
         X : array-like
-            2D feature array with shape (n_samples, n_features)
-            of numerical values.
+            2D feature array with shape (n_samples, n_features) of
+            numerical values.
 
         y : array-like
             1D target array with shape (n_samples,) of categorical values.
 
-        parent : Node, default=None
+        Returns
+        -------
+        DecisionTreeClassifier
+        """
+        X, y = check_X_y(X, y, dtype=object)
+
+        _, self.n_features_ = X.shape
+
+        self.tree_ = self._make_tree(X, y, comm=self.WORLD_COMM)
+        return self
+
+    def para_range(self, comm: MPI.Intracomm, n_iterations):
+        """ """
+        yield from range(comm.Get_rank(), n_iterations, comm.Get_size())
+
+    @override
+    def _make_tree(self, X, y, *, parent=None, depth=0, comm=WORLD_COMM):
+        """Recursively constructs a parallel decision tree classifier.
+
+        Parameters
+        ----------
+        X : array-like
+            2D feature array with shape (n_samples, n_features) of
+            numerical values.
+
+        y : array-like
+            1D target array with shape (n_samples,) of categorical values.
+
+        parent : DecisionTreeClassifier, default=None
             The precedent node.
 
         depth : int, default=0
@@ -349,7 +372,6 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         -------
         Node
         """
-
         n_classes = len(np.unique(y))
         n_samples = len(X)
 
@@ -359,24 +381,36 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         if (
             n_classes == 1
             or np.all(X == X[0])
-            or self.max_depth is not None
-            and self.max_depth == depth
+            or (self.max_depth is not None and self.max_depth == depth)
             or n_samples < self.min_samples_split
         ):
             return Node(value=np.bincount(y).argmax(), parent=parent)
 
-        info_gains, level_thresholds = zip(
-            *[self._compute_information_gain(X, y, i) for i in range(self.n_features_)]
-        )
+        best_level_gains = []
+        best_level_thresholds = []
 
-        split_feature_idx = np.argmax(info_gains)
-        split_threshold = level_thresholds[split_feature_idx]
+        for feature_idx in range(self.n_features_):
+        # for feature_idx in self.para_range(comm, self.n_features_):
+            gain_pred, threshold_pred = self._compute_information_gain(
+                X, y, feature_idx
+            )
+            best_level_gains.append(gain_pred)
+            best_level_thresholds.append(threshold_pred)
+
+        split_feature_idx = np.argmax(best_level_gains)
+
+        # print(rank, ":", best_level_gains)
+        # best_level_gains = comm.allgather(*best_level_gains)
+        # print(best_level_gains)
+        # comm.Allreduce(best_level_gains, split_feature_idx, op=self.MPI.MAXLOC)
+
+        split_threshold = best_level_thresholds[split_feature_idx]
 
         split_node = Node(
             value=split_feature_idx, threshold=split_threshold, parent=parent
         )
 
-        region = X[:, split_feature_idx] <= split_threshold
+        region = X[:, split_node.value] <= split_node.threshold
 
         if size == 1:
             split_node.left = self._make_tree(
@@ -424,5 +458,8 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
                         split_node.right = subtree
 
             group.Free()
+
+        split_node.left.sign = "<="
+        split_node.right.sign = ">"
 
         return split_node

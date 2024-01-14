@@ -1,5 +1,7 @@
-"""
-This module defines the tree node class.
+"""This module defines the node class.
+
+Author: Jason Duong
+Date: 01/11/24
 """
 
 from __future__ import annotations
@@ -18,10 +20,13 @@ class Node:
         The feature index or target value.
 
     threshold : float, optional
-        The feature value representing a split boundary.
+        The feature value representing the split boundary.
 
     depth : int, default=0
         The number of levels from the root to a node.
+
+    sign : str, optional
+        The region indicator of the split boundary.
 
     parent : Node, optional
         The precedent node (the default is `None`, which implies the node
@@ -36,6 +41,7 @@ class Node:
     value: int
     threshold: Optional[float] = None
     depth: int = field(default_factory=int)
+    sign: Optional[str] = field(default=None, repr=False)
     parent: Optional[Node] = field(default=None, repr=False)
     left: Optional[Node] = field(default=None, repr=False)
     right: Optional[Node] = field(default=None, repr=False)
@@ -66,7 +72,11 @@ class Node:
         if not self.depth:
             return root_node_signature.format(spacing=spacing, value=value)
 
-        sign = "<=" if self is self.parent.left else ">"
+        if self.sign is None:
+            sign = "<=" if self is self.parent.left else ">"
+        else:
+            sign = self.sign
+
         threshold = round(self.parent.threshold, 2)
 
         return interior_node_signature.format(
@@ -100,6 +110,4 @@ class Node:
         list
         """
 
-        if self.is_leaf:
-            return []
-        return [self.left, self.right]
+        return [self.left, self.right] if not self.is_leaf else []
