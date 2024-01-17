@@ -390,7 +390,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         best_level_thresholds = []
 
         for feature_idx in range(self.n_features_):
-        # for feature_idx in self.para_range(comm, self.n_features_):
+            # for feature_idx in self.para_range(comm, self.n_features_):
             gain_pred, threshold_pred = self._compute_information_gain(
                 X, y, feature_idx
             )
