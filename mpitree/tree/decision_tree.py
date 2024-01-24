@@ -32,7 +32,7 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         may contain singleton nodes).
     """
 
-    def __init__(self, *, max_depth=None, min_samples_split=2):
+    def __init__(self, *, max_depth: int = None, min_samples_split: int = 2):
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
 
@@ -308,7 +308,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         comm : MPI.Intracomm, default=None
             The current communicator.
 
-        n_block : int, default=1
+        n_blocks : int, default=1
             The number of distributions.
 
         Returns
@@ -344,7 +344,13 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
 
     def para_range(self, comm: MPI.Intracomm, n_iterations):
         """ """
-        yield from range(comm.Get_rank(), n_iterations, comm.Get_size())
+        rank = comm.Get_sank()
+        size = comm.Get_size()
+
+        iwork = n_iterations // size + 1
+        ista = min(rank * iwork, n_iterations + 1)
+        iend = min(ista + iwork - 1, n_iterations) + 1
+        yield from range(ista, iend)
 
     @override
     def _make_tree(self, X, y, *, parent=None, depth=0, comm=WORLD_COMM):
