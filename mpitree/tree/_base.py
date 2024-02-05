@@ -8,6 +8,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
+from numpy.typing import ArrayLike
+
+from enum import Enum
+
+
+class BranchType(Enum):
+    ROOT = "┌──"
+    INTERIOR_LIKE = "├──"
+    LEAF_LIKE = "└──"
 
 
 @dataclass(kw_only=True)
@@ -25,6 +34,9 @@ class Node:
     depth : int, default=0
         The number of levels from the root to a node.
 
+    count : ArrayLike
+        The array of occurrences in for each class label.
+
     sign : str, optional
         The region indicator of the split boundary.
 
@@ -41,14 +53,30 @@ class Node:
     value: int
     threshold: Optional[float] = None
     depth: int = field(default_factory=int)
+    count: ArrayLike = field(default=None)
     sign: Optional[str] = field(default=None, repr=False)
     parent: Optional[Node] = field(default=None, repr=False)
     left: Optional[Node] = field(default=None, repr=False)
     right: Optional[Node] = field(default=None, repr=False)
 
+    _btype: BranchType = field(default=BranchType.ROOT, repr=False)
+
     def __post_init__(self):
         if self.parent is not None:
             self.depth = self.parent.depth + 1
+
+    def __lt__(self, other: Node):
+        if (
+            self.is_leaf
+        ):  # when both self (>) and other (<=) are leaf nodes or just other is an interior node
+            other._btype = BranchType.INTERIOR_LIKE
+            self._btype = BranchType.LEAF_LIKE
+
+        else:  # when both self (>) and other (<=) are interior nodes or just self (>) is an interior node
+            self._btype = BranchType.INTERIOR_LIKE
+            other._btype = BranchType.LEAF_LIKE
+
+        return self.is_leaf
 
     def __str__(self):
         """Return a string-formatted node.
@@ -60,12 +88,10 @@ class Node:
         -------
         str
         """
-        spacing = self.depth * "│  " + (
-            "└──" if self.is_leaf else "├──" if self.depth else "┌──"
-        )
+        spacing = self.depth * "│  " + self._btype.value
 
         root_node_signature = "{spacing} {value}"
-        interior_node_signature = "{spacing} {value} [{sign} {threshold}]"
+        interior_node_signature = "{spacing} {value} [{sign} {threshold:.2f}]"
 
         value = f"class: {self.value}" if self.is_leaf else f"feature_{self.value}"
 
@@ -77,13 +103,11 @@ class Node:
         else:
             sign = self.sign
 
-        threshold = round(self.parent.threshold, 2)
-
         return interior_node_signature.format(
             spacing=spacing,
             value=value,
             sign=sign,
-            threshold=threshold,
+            threshold=self.parent.threshold,
         )
 
     @property

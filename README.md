@@ -20,21 +20,6 @@ git clone https://github.com/ben-my-to/mpitree.git
 cd mpitree && make build
 ```
 
-## Example using `iris.py` with 2 processes
-
-```bash
-$ mpirun -n 2 python3 iris.py
-
-┌── feature_0
-│  ├── feature_1 [> 5.5]
-│  │  └── class: 0 [> 3.6]
-│  │  └── class: 2 [<= 3.6]
-│  ├── feature_1 [> 5.5]
-│  │  └── class: 0 [> 2.7]
-│  │  └── class: 1 [<= 2.7]
-Time: 3.20 ms
-```
-
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
