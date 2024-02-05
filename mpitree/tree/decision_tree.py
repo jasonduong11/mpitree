@@ -13,7 +13,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 import numpy as np
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 
-from ._base import Node
+from ._base import Node, BranchType
 
 
 class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
@@ -39,10 +39,6 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
     def __str__(self):
         """Return a text-based visualization of a decision tree classifier.
 
-        The function is a wrapper function for the overloaded `iter`
-        method that displays each string-formatted `Node` in a
-        decision tree classifier.
-
         See Also
         --------
         mpitree.tree._node.__str__()
@@ -52,26 +48,22 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         str
         """
         check_is_fitted(self)
-        return "\n".join(map(str, self))
 
-    def __iter__(self):
-        """Perform a depth-first search on a decision tree classifier.
+        def apply_prefixer(node, prefix="", result=None):
+            if result is None:
+                result = []
 
-        The stack is ordered by interior nodes first when nodes are pushed.
-        This provides the minimum number of disjoint branch components at
-        each level.
+            result.append(prefix + node._btype.value + " " + str(node))
 
-        Yields
-        ------
-        Node
-        """
-        check_is_fitted(self)
+            for child in sorted(node.get_children()):
+                if node._btype == BranchType.LEAF_LIKE:
+                    apply_prefixer(child, prefix + "   ", result)
+                else:
+                    apply_prefixer(child, prefix + "│  ", result)
 
-        stack = [self.tree_]
-        while stack:
-            node = stack.pop()
-            yield node
-            stack.extend(sorted(node.get_children()))
+            return "\n".join(result)
+
+        return apply_prefixer(self.tree_)
 
     def _decision_paths(self, X):
         """Return a list of predicted leaf nodes.
@@ -90,7 +82,7 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         check_is_fitted(self)
         X = check_array(X, dtype=object)
 
-        def tree_walk(x) -> Node:
+        def walk(x) -> Node:
             """Traverse a decision tree from the root to some leaf node.
 
             Nodes are queried based on the respective feature value from
@@ -115,7 +107,7 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
 
             return node
 
-        return np.apply_along_axis(tree_walk, axis=1, arr=X)
+        return np.apply_along_axis(walk, axis=1, arr=X)
 
     def _compute_entropy(self, x):
         """Measure the impurity on an array.

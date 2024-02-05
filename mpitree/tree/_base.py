@@ -66,9 +66,8 @@ class Node:
             self.depth = self.parent.depth + 1
 
     def __lt__(self, other: Node):
-        if (
-            self.is_leaf
-        ):  # when both self (>) and other (<=) are leaf nodes or just other is an interior node
+        # when both self (>) and other (<=) are leaf nodes or just other is an interior node
+        if self.is_leaf:
             other._btype = BranchType.INTERIOR_LIKE
             self._btype = BranchType.LEAF_LIKE
 
@@ -76,39 +75,31 @@ class Node:
             self._btype = BranchType.INTERIOR_LIKE
             other._btype = BranchType.LEAF_LIKE
 
-        return self.is_leaf
+        return not self.is_leaf
 
     def __str__(self):
         """Return a string-formatted node.
 
-        The function outputs a node's `value` indented according to their
-        `depth` and their split condition for non-root nodes.
+        The function outputs a node's `value` and the branch taken from its
+        parent.
 
         Returns
         -------
         str
         """
-        spacing = self.depth * "│  " + self._btype.value
-
-        root_node_signature = "{spacing} {value}"
-        interior_node_signature = "{spacing} {value} [{sign} {threshold:.2f}]"
 
         value = f"class: {self.value}" if self.is_leaf else f"feature_{self.value}"
 
         if not self.depth:
-            return root_node_signature.format(spacing=spacing, value=value)
+            return value
 
+        # NOTE: this is only because mpi.allgather returns a copy, not reference
         if self.sign is None:
             sign = "<=" if self is self.parent.left else ">"
         else:
             sign = self.sign
 
-        return interior_node_signature.format(
-            spacing=spacing,
-            value=value,
-            sign=sign,
-            threshold=self.parent.threshold,
-        )
+        return f"{value} [{sign} {self.parent.threshold:.2f}]"
 
     @property
     def is_leaf(self):
@@ -133,5 +124,4 @@ class Node:
         -------
         list
         """
-
         return [self.left, self.right] if not self.is_leaf else []
