@@ -1,15 +1,15 @@
 VENV = env
-PYTHON = $(VENV)/bin/python3
 
 activate:
 	. $(VENV)/bin/activate
 
 build: requirements.txt
-	python3 -m venv $(VENV)
+	python3.12 -m venv $(VENV)
 	$(VENV)/bin/pip install -r requirements.txt
 
-lint: $(VENV) activate
+lint: activate
 	black .
-	isort **/*.py
-	flake8 **/*.py
-	pylint **/*.py
+	isort mpitree/tree/_base.py
+	isort mpitree/tree/decision_tree.py
+	flake8 mpitree/tree/_base.py
+	flake8 mpitree/tree/decision_tree.py

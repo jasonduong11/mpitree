@@ -8,12 +8,11 @@ from __future__ import annotations
 
 from typing import override
 
-from sklearn.base import BaseEstimator, ClassifierMixin
-
 import numpy as np
-from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
-from ._base import Node, BranchType
+from ._base import BranchType, Node
 
 
 class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
@@ -38,10 +37,6 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
 
     def __str__(self):
         """Return a text-based visualization of a decision tree classifier.
-
-        See Also
-        --------
-        mpitree.tree._node.__str__()
 
         Returns
         -------
@@ -187,11 +182,10 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         -------
         Node
         """
-        n_classes = len(np.unique(y))
         n_samples = len(X)
 
         if (
-            n_classes == 1
+            len(np.unique(y)) == 1
             or np.all(X == X[0])
             or (self.max_depth is not None and self.max_depth == depth)
             or n_samples < self.min_samples_split
@@ -265,7 +259,7 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         return self
 
     def predict_proba(self, X):
-        """Return the number of occurences for each class.
+        """Return the number of occurences of each class.
 
         Parameters
         ----------
@@ -352,7 +346,8 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         """
         X, y = check_X_y(X, y, dtype=object)
 
-        _, self.n_features_ = X.shape
+        self.n_features_ = X.shape[1]
+        self.n_classes = len(np.unique(y))
 
         self.tree_ = self._make_tree(X, y, comm=self.WORLD_COMM)
         return self
@@ -383,14 +378,13 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         -------
         Node
         """
-        n_classes = len(np.unique(y))
         n_samples = len(X)
 
         rank = comm.Get_rank()
         size = comm.Get_size()
 
         if (
-            n_classes == 1
+            len(np.unique(y)) == 1
             or np.all(X == X[0])
             or (self.max_depth is not None and self.max_depth == depth)
             or n_samples < self.min_samples_split

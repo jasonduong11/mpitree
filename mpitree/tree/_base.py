@@ -7,10 +7,10 @@ Date: 01/11/24
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
-from numpy.typing import ArrayLike
-
 from enum import Enum
+from typing import Optional
+
+from numpy.typing import ArrayLike
 
 
 class BranchType(Enum):
@@ -25,40 +25,39 @@ class Node:
 
     Parameters
     ----------
-    value: int
-        The feature index or target value.
+    value : int
+        The feature index or class label.
 
     threshold : float, optional
-        The feature value representing the split boundary.
+        The feature value representing a split point.
 
     depth : int, default=0
-        The number of levels from the root to a node.
+        The number of levels from the root.
 
-    count : ArrayLike
-        The array of occurrences in for each class label.
+    count : ArrayLike, default=[]
+        The array of occurrences of each class.
 
     sign : str, optional
-        The region indicator of the split boundary.
+        The region space of a split point.
 
     parent : Node, optional
         The precedent node (the default is `None`, which implies the node
         is a root node).
 
     left, right : Node, optional
-        The node whose `value` is (less than or equal to) or (greater than)
-        its `parent` (the default is `None` which implies the node is a
-        leaf node).
+        The node whose `threshold` is (less than or equal to) or (greater
+        than) its `parent` (the default is `None` which implies the node is
+        a leaf node).
     """
 
     value: int
     threshold: Optional[float] = None
     depth: int = field(default_factory=int)
-    count: ArrayLike = field(default=None)
+    count: ArrayLike = field(default_factory=list)
     sign: Optional[str] = field(default=None, repr=False)
     parent: Optional[Node] = field(default=None, repr=False)
     left: Optional[Node] = field(default=None, repr=False)
     right: Optional[Node] = field(default=None, repr=False)
-
     _btype: BranchType = field(default=BranchType.ROOT, repr=False)
 
     def __post_init__(self):
@@ -66,12 +65,14 @@ class Node:
             self.depth = self.parent.depth + 1
 
     def __lt__(self, other: Node):
-        # when both self (>) and other (<=) are leaf nodes or just other is an interior node
+        # when both self (>) and other (<=) are leaf nodes or just other is
+        # an interior node
         if self.is_leaf:
             other._btype = BranchType.INTERIOR_LIKE
             self._btype = BranchType.LEAF_LIKE
-
-        else:  # when both self (>) and other (<=) are interior nodes or just self (>) is an interior node
+        # when both self (>) and other (<=) are interior nodes or just self
+        # (>) is an interior node
+        else:
             self._btype = BranchType.INTERIOR_LIKE
             other._btype = BranchType.LEAF_LIKE
 
@@ -93,7 +94,8 @@ class Node:
         if not self.depth:
             return value
 
-        # NOTE: this is only because mpi.allgather returns a copy, not reference
+        # NOTE: subject to change -- this is only because mpi.allgather
+        # returns a copy, not reference
         if self.sign is None:
             sign = "<=" if self is self.parent.left else ">"
         else:

@@ -2,12 +2,12 @@
 
 ![Build Status](https://github.com/ben-my-to/mpitree/workflows/Lint/badge.svg)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/PyCQA/pylint)
 
 A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 
 ## Requirements
 
+- [Python](https://www.python.org/downloads/) (>= 3.12)
 - [mpi4py](https://pypi.org/project/mpi4py/) (>= 3.1.4)
 - [numpy](https://pypi.org/project/pandas/) (>= 1.24.1)
 - [matplotlib](https://pypi.org/project/matplotlib/) (>= 3.6.2)
