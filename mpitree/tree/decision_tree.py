@@ -27,82 +27,13 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
 
     min_samples_split : int, optional
         A hyperparameter that lower bounds the number of samples required
-        to split. (the default is 2, which implies decision tree classifier
-        may contain singleton nodes).
+        to split. (the default is 2, which implies decision tree may
+        contain singleton nodes).
     """
 
     def __init__(self, *, max_depth: int = None, min_samples_split: int = 2):
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
-
-    def __str__(self):
-        """Return a text-based visualization of a decision tree classifier.
-
-        Returns
-        -------
-        str
-        """
-        check_is_fitted(self)
-
-        def apply_prefixer(node, prefix="", result=None):
-            if result is None:
-                result = []
-
-            result.append(prefix + node._btype.value + " " + str(node))
-
-            for child in sorted(node.get_children()):
-                if node._btype == BranchType.LEAF_LIKE:
-                    apply_prefixer(child, prefix + "   ", result)
-                else:
-                    apply_prefixer(child, prefix + "│  ", result)
-
-            return "\n".join(result)
-
-        return apply_prefixer(self.tree_)
-
-    def _decision_paths(self, X):
-        """Return a list of predicted leaf nodes.
-
-        Parameters
-        ----------
-        X : array-like
-            2D test feature array with shape (n_samples, n_features) of
-            numerical values.
-
-        Returns
-        -------
-        ndarray
-            An array of predicated leaf decision nodes.
-        """
-        check_is_fitted(self)
-        X = check_array(X, dtype=object)
-
-        def walk(x) -> Node:
-            """Traverse a decision tree from the root to some leaf node.
-
-            Nodes are queried based on the respective feature value from
-            `x` at each level until some leaf node has reached.
-
-            Parameters
-            ----------
-            x : array-like
-                1D test instance array of shape (1, n_features).
-
-            Returns
-            -------
-            Node
-            """
-            node = self.tree_
-
-            while not node.is_leaf:
-                if x[node.value] <= node.threshold:
-                    node = node.left
-                else:
-                    node = node.right
-
-            return node
-
-        return np.apply_along_axis(walk, axis=1, arr=X)
 
     def _compute_entropy(self, x):
         """Measure the impurity on an array.
@@ -110,7 +41,7 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         Parameters
         ----------
         x : array-like
-            1D feature column array of shape (n_samples,).
+            Feature column or target array of shape (n_samples,).
 
         Returns
         -------
@@ -126,11 +57,11 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         Parameters
         ----------
         X : array-like
-            2D feature array with shape (n_samples, n_features) of
+            Feature array with shape (n_samples, n_features) of
             numerical values.
 
         y : array-like
-            1D target array with shape (n_samples,) of categorical values.
+            Target array with shape (n_samples,) of categorical values.
 
         feature_idx : int
             The feature index value.
@@ -166,11 +97,11 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         Parameters
         ----------
         X : array-like
-            2D feature array with shape (n_samples, n_features) of
+            Feature array with shape (n_samples, n_features) of
             numerical values.
 
         y : array-like
-            1D target array with shape (n_samples,) of categorical values.
+            Target array with shape (n_samples,) of categorical values.
 
         parent : DecisionTreeClassifier, default=None
             The precedent node.
@@ -182,17 +113,18 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         -------
         Node
         """
+        n_classes = len(np.unique(y))
         n_samples = len(X)
 
         if (
-            len(np.unique(y)) == 1
+            n_classes == 1
             or np.all(X == X[0])
             or (self.max_depth is not None and self.max_depth == depth)
             or n_samples < self.min_samples_split
         ):
             return Node(
                 value=np.bincount(y).argmax(),
-                count=np.bincount(y, minlength=self.n_classes),
+                count=np.bincount(y, minlength=len(self.classes_)),
                 parent=parent,
             )
 
@@ -212,7 +144,7 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         split_node = Node(
             value=split_feature_idx,
             threshold=split_threshold,
-            count=np.bincount(y, minlength=self.n_classes),
+            count=np.bincount(y, minlength=len(self.classes_)),
             parent=parent,
         )
 
@@ -234,17 +166,77 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
 
         return split_node
 
+    def export_text(self, feature_names=None, class_names=None):
+        """Return a text-based visualization of a decision tree classifier.
+
+        Parameters
+        ----------
+        feature_names : array-like
+            Array of shape (1, n_features).
+
+        class_names : array-like
+            Array of shape (1, n_classes).
+
+        Returns
+        -------
+        str
+        """
+        check_is_fitted(self)
+
+        def apply_prefixer(node, result=None, prefix=""):
+            if result is None:
+                result = []
+
+            branch = node._btype.value
+
+            if node.is_leaf:
+                value = (
+                    class_names[node.value]
+                    if class_names is not None
+                    else f"class: {node.value}"
+                )
+            else:
+                value = (
+                    feature_names[node.value]
+                    if feature_names is not None
+                    else f"feature_{node.value}"
+                )
+
+            if not node.depth:
+                result.append(prefix + branch + " " + value)
+            else:
+                # NOTE: subject to change -- this is only because
+                # mpi.allgather returns a copy, not reference
+                if node._sign is None:
+                    sign = "<=" if node is node.parent.left else ">"
+                else:
+                    sign = node._sign
+
+                result.append(
+                    prefix + branch + f" {value} [{sign} {node.parent.threshold:.2f}]"
+                )
+
+            for child in sorted(node.children):
+                if node._btype == BranchType.LEAF_LIKE:
+                    apply_prefixer(child, result, prefix + "   ")
+                else:
+                    apply_prefixer(child, result, prefix + "│  ")
+
+            return "\n".join(result)
+
+        return apply_prefixer(self.tree_)
+
     def fit(self, X, y):
         """Train a decision tree classifier.
 
         Parameters
         ----------
         X : array-like
-            2D feature array with shape (n_samples, n_features) of
+            Feature array with shape (n_samples, n_features) of
             numerical values.
 
         y : array-like
-            1D target array with shape (n_samples,) of categorical values.
+            Target array with shape (n_samples,) of categorical values.
 
         Returns
         -------
@@ -253,18 +245,18 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         X, y = check_X_y(X, y, dtype=object)
 
         self.n_features_ = X.shape[1]
-        self.n_classes = len(np.unique(y))
+        self.classes_ = np.unique(y)
 
         self.tree_ = self._make_tree(X, y)
         return self
 
     def predict_proba(self, X):
-        """Return the number of occurences of each class.
+        """Return the array of occurrences of each class.
 
         Parameters
         ----------
         X : array-like
-            2D test feature array with shape (n_samples, n_features) of
+            Test feature array with shape (n_samples, n_features) of
             numerical values.
 
         Returns
@@ -274,18 +266,37 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         check_is_fitted(self)
         X = check_array(X, dtype=object)
 
-        return np.array([node.count for node in self._decision_paths(X)])
+        def walk(x, node=self.tree_) -> Node:
+            """Traverse a decision tree from the root to some leaf node.
+
+            Nodes are queried based on the respective feature value from
+            `x` at each level until some leaf node has reached.
+
+            Parameters
+            ----------
+            x : array-like
+                Test instance array of shape (1, n_features).
+
+            Returns
+            -------
+            Node
+            """
+            if node.is_leaf:
+                return node.count
+            return walk(x, node.left if x[node.value] <= node.threshold else node.right)
+
+        return np.apply_along_axis(walk, axis=1, arr=X)
 
     def predict(self, X):
-        """Return a predicted leaf node.
+        """Return the array of predicted leaf nodes.
 
-        The function is a wrapper function for the `_decision_paths`
-        function that returns the `value` for each predicted leaf node.
+        The function returns the class with highest probability for each
+        test sample.
 
         Parameters
         ----------
         X : array-like
-            2D test feature array with shape (n_samples, n_features) of
+            Test feature array with shape (n_samples, n_features) of
             numerical values.
 
         Returns
@@ -334,11 +345,11 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         Parameters
         ----------
         X : array-like
-            2D feature array with shape (n_samples, n_features) of
+            Feature array with shape (n_samples, n_features) of
             numerical values.
 
         y : array-like
-            1D target array with shape (n_samples,) of categorical values.
+            Target array with shape (n_samples,) of categorical values.
 
         Returns
         -------
@@ -347,7 +358,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         X, y = check_X_y(X, y, dtype=object)
 
         self.n_features_ = X.shape[1]
-        self.n_classes = len(np.unique(y))
+        self.classes_ = np.unique(y)
 
         self.tree_ = self._make_tree(X, y, comm=self.WORLD_COMM)
         return self
@@ -359,11 +370,11 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         Parameters
         ----------
         X : array-like
-            2D feature array with shape (n_samples, n_features) of
+            Feature array with shape (n_samples, n_features) of
             numerical values.
 
         y : array-like
-            1D target array with shape (n_samples,) of categorical values.
+            Target array with shape (n_samples,) of categorical values.
 
         parent : DecisionTreeClassifier, default=None
             The precedent node.
@@ -378,20 +389,21 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         -------
         Node
         """
+        n_classes = len(np.unique(y))
         n_samples = len(X)
 
         rank = comm.Get_rank()
         size = comm.Get_size()
 
         if (
-            len(np.unique(y)) == 1
+            n_classes == 1
             or np.all(X == X[0])
             or (self.max_depth is not None and self.max_depth == depth)
             or n_samples < self.min_samples_split
         ):
             return Node(
                 value=np.bincount(y).argmax(),
-                count=np.bincount(y, minlength=self.n_classes),
+                count=np.bincount(y, minlength=len(self.classes_)),
                 parent=parent,
             )
 
@@ -411,7 +423,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
         split_node = Node(
             value=split_feature_idx,
             threshold=split_threshold,
-            count=np.bincount(y, minlength=self.n_classes),
+            count=np.bincount(y, minlength=len(self.classes_)),
             parent=parent,
         )
 
@@ -464,7 +476,7 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
 
             group.Free()
 
-        split_node.left.sign = "<="
-        split_node.right.sign = ">"
+        split_node.left._sign = "<="
+        split_node.right._sign = ">"
 
         return split_node

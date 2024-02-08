@@ -5,14 +5,6 @@
 
 A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 
-## Requirements
-
-- [Python](https://www.python.org/downloads/) (>= 3.12)
-- [mpi4py](https://pypi.org/project/mpi4py/) (>= 3.1.4)
-- [numpy](https://pypi.org/project/pandas/) (>= 1.24.1)
-- [matplotlib](https://pypi.org/project/matplotlib/) (>= 3.6.2)
-- [scikit-learn](https://pypi.org/project/scikit-learn/) (>= 1.2.2)
-
 ## Installation
 
 ```bash

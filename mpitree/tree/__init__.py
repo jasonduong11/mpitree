@@ -4,9 +4,6 @@ Author: Jason Duong
 Date: 01/11/24
 """
 
-from .decision_tree import (
-    DecisionTreeClassifier,
-    ParallelDecisionTreeClassifier,
-)
+from .decision_tree import DecisionTreeClassifier, ParallelDecisionTreeClassifier
 
 __all__ = ["DecisionTreeClassifier", "ParallelDecisionTreeClassifier"]
