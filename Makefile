@@ -1,13 +1,18 @@
 VENV = env
+PIP = $(VENV)/bin/pip
 
-activate:
-	. $(VENV)/bin/activate
 
 build: requirements.txt
 	python3.12 -m venv $(VENV)
-	$(VENV)/bin/pip install -r requirements.txt
+	$(PIP) install -r requirements.txt
 
-lint: activate
-	black .
-	isort mpitree/tree/*.py
-	flake8 mpitree/tree/*.py
+
+lint: $(VENV)/bin/activate
+	ruff check --fix
+	ruff format
+
+
+clean:
+	rm -rf mpitree/__pycache__
+	rm -rf mpitree/tree/__pycache__
+	rm -rf .ruff_cache
