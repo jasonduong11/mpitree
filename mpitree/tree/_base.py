@@ -1,4 +1,4 @@
-"""This module defines the node class.
+"""A module that defines the node class.
 
 Author: Jason Duong
 Date: 01/11/24

@@ -1,7 +1,6 @@
-"""This module defines the (parallel) decision tree classifier classes.
+"""A module that defines the (parallel) decision tree classifier classes.
 
-Author: Jason Duong
-Date: 01/11/24
+Author: Jason Duong Date: 01/11/24
 """
 
 from __future__ import annotations
