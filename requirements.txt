@@ -15,6 +15,7 @@ jupyter_core==5.7.1
 kiwisolver==1.4.5
 matplotlib==3.8.2
 matplotlib-inline==0.1.6
+mpi4py==3.1.5
 nest-asyncio==1.6.0
 numpy==1.26.4
 packaging==23.2

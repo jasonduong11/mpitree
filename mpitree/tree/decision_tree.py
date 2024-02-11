@@ -165,66 +165,6 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
 
         return split_node
 
-    def export_text(self, feature_names=None, class_names=None):
-        """Return a text-based visualization of a decision tree classifier.
-
-        Parameters
-        ----------
-        feature_names : array-like
-            Array of shape (1, n_features).
-
-        class_names : array-like
-            Array of shape (1, n_classes).
-
-        Returns
-        -------
-        str
-        """
-        check_is_fitted(self)
-
-        def apply_prefixer(node, result=None, prefix=""):
-            if result is None:
-                result = []
-
-            branch = node._btype.value
-
-            if node.is_leaf:
-                value = (
-                    class_names[node.value]
-                    if class_names is not None
-                    else f"class: {node.value}"
-                )
-            else:
-                value = (
-                    feature_names[node.value]
-                    if feature_names is not None
-                    else f"feature_{node.value}"
-                )
-
-            if not node.depth:
-                result.append(prefix + branch + " " + value)
-            else:
-                # NOTE: subject to change -- this is only because
-                # mpi.allgather returns a copy, not reference
-                if node._sign is None:
-                    sign = "<=" if node is node.parent.left else ">"
-                else:
-                    sign = node._sign
-
-                result.append(
-                    prefix + branch + f" {value} [{sign} {node.parent.threshold:.2f}]"
-                )
-
-            for child in sorted(node.children):
-                if node._btype == BranchType.LEAF_LIKE:
-                    apply_prefixer(child, result, prefix + "   ")
-                else:
-                    apply_prefixer(child, result, prefix + "│  ")
-
-            return "\n".join(result)
-
-        return apply_prefixer(self.tree_)
-
     def fit(self, X, y):
         """Train a decision tree classifier.
 
@@ -306,6 +246,66 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         X = check_array(X, dtype=object)
 
         return np.argmax(self.predict_proba(X), axis=1)
+
+    def export_text(self, feature_names=None, class_names=None):
+        """Return a text-based visualization of a decision tree classifier.
+
+        Parameters
+        ----------
+        feature_names : array-like
+            Array of shape (1, n_features).
+
+        class_names : array-like
+            Array of shape (1, n_classes).
+
+        Returns
+        -------
+        str
+        """
+        check_is_fitted(self)
+
+        def apply_prefixer(node, result=None, prefix=""):
+            if result is None:
+                result = []
+
+            branch = node._btype.value
+
+            if node.is_leaf:
+                value = (
+                    class_names[node.value]
+                    if class_names is not None
+                    else f"class: {node.value}"
+                )
+            else:
+                value = (
+                    feature_names[node.value]
+                    if feature_names is not None
+                    else f"feature_{node.value}"
+                )
+
+            if not node.depth:
+                result.append(prefix + branch + " " + value)
+            else:
+                # NOTE: subject to change -- this is only because
+                # mpi.allgather returns a copy, not reference
+                if node._sign is None:
+                    sign = "<=" if node is node.parent.left else ">"
+                else:
+                    sign = node._sign
+
+                result.append(
+                    prefix + branch + f" {value} [{sign} {node.parent.threshold:.2f}]"
+                )
+
+            for child in sorted(node.children):
+                if node._btype == BranchType.LEAF_LIKE:
+                    apply_prefixer(child, result, prefix + "   ")
+                else:
+                    apply_prefixer(child, result, prefix + "│  ")
+
+            return "\n".join(result)
+
+        return apply_prefixer(self.tree_)
 
 
 class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
