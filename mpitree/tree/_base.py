@@ -54,7 +54,6 @@ class Node:
     parent: Optional[Node] = field(default=None, repr=False)
     left: Optional[Node] = field(default=None, repr=False)
     right: Optional[Node] = field(default=None, repr=False)
-    _sign: Optional[str] = field(default=None, repr=False)
     _btype: BranchType = field(default=BranchType.ROOT, repr=False)
 
     def __post_init__(self):

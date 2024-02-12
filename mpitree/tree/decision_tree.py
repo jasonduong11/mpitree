@@ -286,12 +286,7 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
             if not node.depth:
                 result.append(prefix + branch + " " + value)
             else:
-                # NOTE: subject to change -- this is only because
-                # mpi.allgather returns a copy, not reference
-                if node._sign is None:
-                    sign = "<=" if node is node.parent.left else ">"
-                else:
-                    sign = node._sign
+                sign = "<=" if node is node.parent.left else ">"
 
                 result.append(
                     prefix + branch + f" {value} [{sign} {node.parent.threshold:.2f}]"
@@ -470,12 +465,11 @@ class ParallelDecisionTreeClassifier(DecisionTreeClassifier):
                 for sign, subtree in level.items():
                     if sign == "<=":
                         split_node.left = subtree
+                        split_node.left.parent = split_node
                     elif sign == ">":
                         split_node.right = subtree
+                        split_node.right.parent = split_node
 
             group.Free()
-
-        split_node.left._sign = "<="
-        split_node.right._sign = ">"
 
         return split_node
