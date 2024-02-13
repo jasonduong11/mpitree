@@ -1,0 +1,12 @@
+name: env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - conda-forge::ruff
+  - numpy
+  - pandas
+  - pyarrow
+  - scikit-learn
+  - matplotlib
+  - mpi4py
