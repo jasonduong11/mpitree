@@ -247,7 +247,7 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
 
         return np.argmax(self.predict_proba(X), axis=1)
 
-    def export_text(self, feature_names=None, class_names=None):
+    def export_text(self, *, feature_names=None, class_names=None, precision=2):
         """Return a text-based visualization of a decision tree classifier.
 
         Parameters
@@ -258,17 +258,28 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         class_names : array-like
             Array of shape (1, n_classes).
 
+        precision : int
+            The number of digits right of the decimal point.
+
         Returns
         -------
         str
         """
         check_is_fitted(self)
 
+        def content(node, value):
+            data = " ".join((node._btype.value, value))
+
+            if not node.depth:
+                return data
+            sign = "<=" if node is node.parent.left else ">"
+            return f"{data} [{sign} {node.parent.threshold:.{precision}f}]"
+
         def apply_prefixer(node, result=None, prefix=""):
             if result is None:
                 result = []
 
-            branch = node._btype.value
+            # branch = node._btype.value
 
             if node.is_leaf:
                 value = (
@@ -283,17 +294,10 @@ class DecisionTreeClassifier(BaseEstimator, ClassifierMixin):
                     else f"feature_{node.value}"
                 )
 
-            if not node.depth:
-                result.append(prefix + branch + " " + value)
-            else:
-                sign = "<=" if node is node.parent.left else ">"
-
-                result.append(
-                    prefix + branch + f" {value} [{sign} {node.parent.threshold:.2f}]"
-                )
+            result.append(prefix + content(node, value))
 
             for child in sorted(node.children):
-                if node._btype == BranchType.LEAF_LIKE:
+                if node._btype is BranchType.LEAF_LIKE:
                     apply_prefixer(child, result, prefix + "   ")
                 else:
                     apply_prefixer(child, result, prefix + "│  ")
