@@ -1,6 +1,6 @@
 # mpitree
 
-![Build Status](https://github.com/JasonDuoong/mpitree/workflows/Lint/badge.svg)
+![Build Status](https://github.com/jasonduong11/mpitree/workflows/Lint/badge.svg)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
@@ -9,7 +9,7 @@ A Parallel Decision Tree Implementation using MPI *(Message Passing Interface)*.
 ## Installation
 
 ```bash
-git clone https://github.com/JasonDuoong/mpitree.git
+git clone https://github.com/jasonduong11/mpitree.git
 cd mpitree && make build
 ```
 
