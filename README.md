@@ -21,4 +21,4 @@ Please make sure to update tests as appropriate.
 
 ## Licence
 
-[MIT](https://github.com/JasonDuoong/mpitree/blob/main/LICENSE)
+[MIT](https://github.com/jasonduong11/mpitree/blob/main/LICENSE)
