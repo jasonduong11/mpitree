@@ -7,6 +7,8 @@ dependencies:
   - numpy
   - pandas
   - pyarrow
+  - pygments
+  - prompt_toolkit
   - scikit-learn
   - matplotlib
   - mpi4py
